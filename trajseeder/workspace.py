@@ -1,6 +1,25 @@
 import numpy as np
 import mdtraj as md
 
+
+""" 
+workspace.py → tools to interact with a workspace
+
+iExample responsibilities of ProjectWorkspace:
+
+load config
+load calibration
+get_job(job_id)
+status_summary()
+retry_failed()
+verify_outputs()
+
+
+"""
+
+
+
+
 class ProjectWorkspace:
     """A class to manage the trajseeder workspace."""
 
@@ -16,7 +35,7 @@ class ProjectWorkspace:
         """Load the calibration information,"""
         pass
 
-    def get_job(self, job_id)
+    def get_job(self, job_id):
         """Return the specified job."""
         pass
 

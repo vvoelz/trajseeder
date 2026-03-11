@@ -78,17 +78,17 @@ def __create_project_paths(project_dir):
         raise RuntimeError("Project directory already exists")
 
     project_path.mkdir()
-    log(f"[planning] Created project workspace: {project}")
+    log(f"[planning] Created project workspace: {project_path}")
     
     jobs_path = project_path / "jobs"
     jobs_path.mkdir()
-    log(f"[planning] Created jobs dir in workspace: {jobs_dir}")
+    log(f"[planning] Created jobs dir in workspace: {jobs_path}")
 
     logs_path = project_path / "logs"
     logs_path.mkdir()
-    log(f"[planning] Created logs dir in workspace: {logs_dir}")
+    log(f"[planning] Created logs dir in workspace: {logs_path}")
 
-    return (project_path, jobs_dir, logs_path)
+    return (project_path, jobs_path, logs_path)
 
 
 def __write_job_config(job_dir, job_id):

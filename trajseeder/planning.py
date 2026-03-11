@@ -160,8 +160,6 @@ def __write_project_config(project_path):
 
     log(f"[planning] Wrote project config: {config_path}")
 
-def __create_jobs():
-    pass
 
 
 

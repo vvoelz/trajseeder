@@ -59,10 +59,16 @@ def create_workspace(structures, calibration_file, project_dir, shard_size=1000)
 
     # Write the manifest
     __write_manifest(project_path, manifest_rows)
+    
+
+    log(f"[planning] Created {len(structures)} jobs")
 
     
 
-# Private helper functions:
+# ---------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------
+
 
 def __create_project_paths(project_dir):
 

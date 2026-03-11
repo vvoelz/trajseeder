@@ -80,11 +80,11 @@ def __create_project_paths(project_dir):
     project_path.mkdir()
     log(f"[planning] Created project workspace: {project}")
     
-    jobs_path = project / "jobs"
+    jobs_path = project_path / "jobs"
     jobs_path.mkdir()
     log(f"[planning] Created jobs dir in workspace: {jobs_dir}")
 
-    logs_path = project / "logs"
+    logs_path = project_path / "logs"
     logs_path.mkdir()
     log(f"[planning] Created logs dir in workspace: {logs_dir}")
 

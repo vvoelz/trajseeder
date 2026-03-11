@@ -17,3 +17,9 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/vvoelz/trajseeder"
+
+[project.scripts]
+trajseeder = "trajseeder.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["trajseeder"]

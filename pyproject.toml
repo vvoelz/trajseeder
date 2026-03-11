@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trajseeder"
+version = "0.0.0"
+description = "Seed molecular dynamics trajectories from structural ensembles"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    {name = "Vincent Voelz"}
+]
+license = {text = "MIT"}
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/vvoelz/trajseeder"

@@ -34,6 +34,9 @@ def create_workspace(structures, calibration_file, project_dir, shard_size=1000)
     # Copy the calibration JSON file in the project
     shutil.copy(calibration_file, project_path / "calibration.json")
 
+    # Write project-level configuration
+    __write_project_config(project_path)
+
     structures = sorted(structures)
 
     manifest_rows = []
@@ -122,6 +125,40 @@ def __write_manifest(project_path, rows):
 
     log(f"[planning] Wrote manifest: {manifest_path}")
 
+
+def __write_project_config(project_path):
+    """Write the project-level config.json file."""
+
+    config = {
+        "config_version": 1,
+
+        "forcefield_files": [
+            "amber14-all.xml",
+            "amber14/tip3p.xml"
+        ],
+
+        "nonbonded_method": "PME",
+        "nonbonded_cutoff_nm": 1.0,
+
+        "constraints": "HBonds",
+        "rigid_water": True,
+
+        "temperature_kelvin": 300.0,
+        "pressure_bar": 1.0,
+
+        "timestep_fs": 2.0,
+
+        "integrator_friction_per_ps": 1.0,
+
+        "npt_equilibration_steps": 500000
+    }
+
+    config_path = project_path / "config.json"
+
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+
+    log(f"[planning] Wrote project config: {config_path}")
 
 def __create_jobs():
     pass

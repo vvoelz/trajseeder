@@ -3,9 +3,8 @@ A Python package to systematically prepare OpenMM simulations from an ensemble o
 
 Early placeholder release to reserve the package namespace.
 
-
-# trajseeder
-
+<details> <summary><strong>Overview</strong></summary>
+          
 **trajseeder** is a Python package for preparing large ensembles of protein structures for molecular dynamics simulation with OpenMM.
 
 The primary goal of trajseeder is to transform an ensemble of experimentally or computationally derived protein conformations into a collection of **uniform, equilibrated simulation seeds** that are ready for large-scale distributed molecular dynamics.
@@ -89,8 +88,80 @@ Distributed production simulations
 trajseeder is under active development. The current focus is on building a robust, modular framework for large-scale OpenMM system preparation before implementing the full simulation protocol.
 
 
+</details> 
 
-# Installation
+<details> <summary><strong>Installation</strong></summary>
+
+## Installation
+
+### Requirements
+
+trajseeder is written for Python 3.10 or later and is built around the OpenMM molecular simulation toolkit.
+
+Current dependencies include:
+
+* OpenMM
+* MDTraj
+* NumPy
+* Typer (command-line interface)
+
+Additional scientific Python packages may be added as development continues.
+
+### Install from PyPI
+
+The latest released version can be installed with:
+
+```bash
+pip install trajseeder
+```
+
+### Install from source
+
+To install the latest development version:
+
+```bash
+git clone https://github.com/<your-github-username>/trajseeder.git
+cd trajseeder
+
+pip install -e .
+```
+
+The editable (`-e`) installation is recommended for developers, as changes to the source code are immediately reflected without reinstalling the package.
+
+### Verify the installation
+
+After installation, the command-line interface should be available:
+
+```bash
+trajseeder --help
+```
+
+which displays the available commands:
+
+```text
+Usage: trajseeder [OPTIONS] COMMAND [ARGS]...
+
+Commands:
+    calibrate
+    plan
+    run
+    status
+    inspect
+    retry-failed
+    verify
+    clean
+```
+
+### Development status
+
+trajseeder is currently under active development. The overall project architecture—including the command-line interface, project workspace layout, and job management system—is in place, while the OpenMM preparation protocol is still being implemented.
+
+Interfaces may evolve as the project matures, although care is being taken to keep the overall workflow (`calibrate → plan → run`) stable.
+
+</details> 
+
+
+<details> <summary><strong>Usage</strong></summary>
 
 # Usage
 
@@ -300,3 +371,4 @@ trajseeder verify --project trajseeder_project
 
 For large ensembles, the `run` step is usually executed through a scheduler array rather than directly in a shell loop.
 
+</details>

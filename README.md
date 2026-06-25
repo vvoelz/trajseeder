@@ -161,6 +161,20 @@ Interfaces may evolve as the project matures, although care is being taken to ke
 </details> 
 
 
+<details> <summary><strong>Quick start</strong></summary>
+
+# Quick start
+```
+trajseeder calibrate structures/*.pdb
+
+trajseeder plan structures/*.pdb \
+    --calibration calibration.json \
+    --project my_project
+
+trajseeder run 0 --project my_project
+```
+</details>
+
 <details> <summary><strong>Usage</strong></summary>
 
 # Usage

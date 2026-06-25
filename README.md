@@ -100,8 +100,8 @@ trajseeder is written for Python 3.10 or later and is built around the OpenMM mo
 
 Current dependencies include:
 
-* OpenMM
-* MDTraj
+* OpenMM (openmm.org)
+* MDTraj (mdtraj.org)
 * NumPy
 * Typer (command-line interface)
 

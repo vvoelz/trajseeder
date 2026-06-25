@@ -1,5 +1,7 @@
 import typer
 
+from trajseeder.calibration import run_calibration
+
 
 def calibrate(
     structures: list[str],
@@ -7,19 +9,27 @@ def calibrate(
         10,
         help="Number of structures to use for calibration",
     ),
+    padding_nm: float = typer.Option(
+        1.2,
+        help="Solvent padding in nanometers",
+    ),
     output: str = typer.Option(
         "calibration.json",
         help="Output calibration file",
+    ),
+    random_seed: int = typer.Option(
+        12345,
+        help="Random seed for selecting calibration structures",
     ),
 ):
     """
     Determine solvent calibration parameters from an ensemble of structures.
     """
 
-    print("Calibration command invoked.")
-    print(f"Number of input structures: {len(structures)}")
-    print(f"Calibration subset size: {n_calibration}")
-    print(f"Output file: {output}")
-
-    # Placeholder until calibration implementation exists
-    print("Calibration logic not implemented yet.")
+    run_calibration(
+        structures=structures,
+        n_calibration=n_calibration,
+        padding_nm=padding_nm,
+        output=output,
+        random_seed=random_seed,
+    )

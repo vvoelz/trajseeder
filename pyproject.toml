@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trajseeder"
-version = "0.0.0"
+version = "0.0.1"
 description = "Seed molecular dynamics trajectories from structural ensembles"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [
-    {name = "Vincent Voelz"}
+    {name = "Vincent Voelz"},
+    {name = "Preston Waters"}
 ]
 license = {text = "MIT"}
 

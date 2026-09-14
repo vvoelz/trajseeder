@@ -18,21 +18,87 @@ from openmm.app import Modeller, PDBFile
 from openmm.unit import nanometer, nanometers, molar
 
 
+def run_calibration(project_dir):
+
+    """
+    For a project established with "trajseeder plan", establishes cannonical 
+    box size based on user input. Then solvates all structures in the project
+    with the name number of waters and ionic concentration based on config.json.
+    Saves results of calibration to calibration.json.
+    """
+    # TODO see issues on github, many of the major long term ones such as potential for broken pdbs are there
+    # the most pressing issue is that we are currently assuming a clean PDB with no solvent which is not always the case
+    # adding hydrogens is also important
+    # For example, __max_extent() will return incorrect answers with pre-hydrated structures
+    # TODO do we want to allow the user different calibration files in the same project?
+
+    project_path = Path(project_dir).expanduser().resolve()
+    
+    # Warn the user if there is an existing calibration file with the same name
+    if (project_path / "calibration.json").exists():
+        log("[red]This will overwrite a previous calibration.json. [/red]")
+        log("[red]If you have existing jobs, or have calibrated previously this will break your entire project![/red]")
+        log("[red]Would you like to continue? [Y/N] [/red]")
+        user_input = input().strip().lower()
+        if user_input != 'y':
+            log("Calibration aborted by user.")
+            return 
+
+    # Check for essential files, are we actually in a project?
+    if not(project_path / "config.json").exists(): 
+        raise RuntimeError(f"config.json is missing from {project_dir}.")
+    if not(project_path / "manifest.csv").exists(): 
+        raise RuntimeError(f"manifest.csv is missing from {project_dir}.")
+    if not(project_path / "conforms").exists(): 
+        raise RuntimeError(f"conforms/ is missing from {project_dir}.")
+    if not(project_path / "jobs").exists(): 
+        raise RuntimeError(f"jobs/ is missing from {project_dir}.")
+    if not(project_path / "logs").exists(): 
+        raise RuntimeError(f"logs/ is missing from {project_dir}.")
+
+    log("Proceeding with calibration...")
+
+    userExtent, structuresCut = __analysis_of_extents(project_path / "conforms")
+
+    log("Equalizing solvation.")
+    
+    modellers, cannonLen, numWaters = __equalize_solvation(structuresCut, userExtent, project_path/"config.json")
+
+    log(f"Saving calibrated structures in workspace: {calibrated_path}")
+    
+    calibrated_path = project_path / "calibrated_conforms"
+    calibrated_path.mkdir()
+
+    for i, modeller in enumerate(modellers):
+        output_path = calibrated_path / f"solvated_{i}.pdb"
+        with open(output_path, "w") as f:
+            PDBFile.writeFile(modeller.getTopology(), modeller.getPositions(), f)
+
+    # Make a json file with the results of the calibration 
+    data = {
+    "cannonLen": cannonLen,
+    "userExtent": userExtent,
+    "numWaters": numWaters,
+    "numIons": "not implemented", #TODO implement, + do we want positive and negative count?
+    }
+    with open(project_path / "calibration", "w") as f:
+        json.dump(data, f)
+
+    log("Calibration complete!")
+    log("Warning: This function is not fully implemented yet.")
+
+
+# ---------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------
+
+
 def log(msg: str) -> None:
     print(msg, flush=True)
 
-def is_valid_json_path(path_str: str) -> bool:
-    try:
-        path = Path(path_str)
-        path.resolve()
-        return path.suffix.lower() == '.json'
-        
-    except (OSError, ValueError):
-        return False
-
-# Returns the distance between the furthest two atoms on a PDB to use as its max extent
-# TODO I THINK THIS ASSUMES THAT THERE ARE NO OTHER ATOMS, MAY BREAK WITH PRE-HYDRATED CONFORMATIONS
-def max_extent(structure_path: str) -> float:
+# TODO ASSUMES THAT THERE ARE NO OTHER ATOMS, WILL BREAK WITH PRE-HYDRATED CONFORMATIONS
+def __max_extent(structure_path: str) -> float:
+    """Returns the distance between the furthest two atoms on a PDB"""
     pdb = PDBFile(structure_path)
     #TODO pdb.positions.unit is usually in nm, but is it always?
     if(pdb.positions.unit != openmm.unit.nanometer):
@@ -42,8 +108,12 @@ def max_extent(structure_path: str) -> float:
     pts = coords[hull.vertices]
     return pdist(pts).max()
 
-# Prints a histogram to the console
-def print_histogram(data):
+
+def __print_histogram(data):
+    """ Prints a histogram to the console to visualize data"""
+
+    print("\n") # makes formatting nice
+
     max_height = 20   # bar height cap in rows, purely cosmetic
     max_bins = 50     # capped at 50 bins to avoid degenerate cases (e.g. extreme outliers)
     min_bins = 10     # floor so sparse/small datasets still show useful structure
@@ -115,17 +185,22 @@ def print_histogram(data):
  
     print(f"\nconformations={n}  bins={bins}  bin width={bin_width:.2f}")
 
-# Runs an analysis to inform user's choice for cannonical box length
-# Returns their selection and the sorted list of structures within that cutoff
-def analysis_of_extents(structures) -> tuple[float, list[str]]:
 
-    extents = np.array([max_extent(structure) for structure in structures])
+def __analysis_of_extents(structures_path) -> tuple[float, list[str]]:
+    """
+    Input: a path to your project's structures
+    Runs an analysis to inform user's choice for cannonical box length
+    Returns their selection and the sorted list of structures within that cutoff
+    """
+    structures = [str(p) for p in (structures_path).glob("*.pdb")]
+
+    extents = np.array([__max_extent(structure) for structure in structures])
 
     order = np.argsort(extents, kind='stable')
     sorted_extents = extents[order]
     sorted_structures = [structures[i] for i in order]
 
-    print_histogram(extents)
+    __print_histogram(extents)
 
     for i in range(6):
         pct = np.percentile(sorted_extents, 75 + i*5, method='nearest')
@@ -148,27 +223,33 @@ def analysis_of_extents(structures) -> tuple[float, list[str]]:
     return userExtent, sorted_structures[:cutoffIndex]
 
 
-#Inputs:
-#structures: a list of strings representing file paths of pdbs
-#cannonLen: a float representing the edge length of the cubic box to place each structure into in nm
-#ionicStrength: a float representing the mols of ions per liter of solvent (water)
-#Returns:
-#A list of modeller objects, one model for each input structure, matching all input parameters and all
-#having the same number of water molecules
-#TODO: This function is slowwwwww, see if you can speed it up or at least make it less opaque why
-def equalize_solvation(structures, cannonLen, ionicStrength):
+def __equalize_solvation(structures, userExtent, config_path):
+    """
+    Inputs:
+        structures: a list of strings representing file paths of pdbs
+        cannonLen: a float representing the edge length of the cubic box to place each structure into in nm
+        ionicStrength: a float representing the mols of ions per liter of solvent (water)
+    Returns:
+        A list of modeller objects, one model for each input structure, matching all input parameters and all
+        having the same number of water molecules
+    """
+    #TODO: This function is slowwwwww, see if you can speed it up or at least make it less opaque why
 
-    # Default values for addSolvent() TODO: allow user to provide a config file to select these
-    forcefield = ForceField('amber14-all.xml', 'amber14/tip3pfb.xml')
-    model='tip3p'
-    positiveIon='Na+'
-    negativeIon='Cl-'
-    neutralize = True
+    with open(config_path) as f:
+        config = json.load(f)
+
+    forcefield = ForceField(config["forcefield_files"][0], config["forcefield_files"][1])
+    model = config["model"]
+    positiveIon = config["positiveIon"]
+    negativeIon = config["negativeIon"]
+    ionicStrength = config["ionicStrength"]*molar
+    neutralize = config["neutralize"]
     residueTemplates = dict() #TODO: how does this work, won't these go stale when we modify things?
+    ionCutoff = config["ionCutoff"]*nanometer
 
-    # Default value for _addIons()
-    ionCutoff = 0.5*nanometer
+    random.seed(config["randomSeed"])
 
+    cannonLen = userExtent + 2*config["padding_nm"]
 
     # Build initial models
     modellers = []
@@ -223,7 +304,7 @@ def equalize_solvation(structures, cannonLen, ionicStrength):
     
     added_HOH_pos_dicts = [added_HOH_positions(m, p) for m, p in zip(modellers, protected_HOH_sets)]
 
-    # The minimum number of water molecules across all conformations
+    # The minimum number of added water molecules across all conformations
     minNumHOH = min(len(pos_dict) for pos_dict in added_HOH_pos_dicts)
 
     # Remove surplus HOHs and add ions to each model
@@ -245,61 +326,5 @@ def equalize_solvation(structures, cannonLen, ionicStrength):
                        ionicStrength=ionicStrength, 
                        neutralize=neutralize, 
                        residueTemplates=residueTemplates)
-
-    return modellers
-
-
-"""
-Given a list of structures, build modeller objects with the same box size, number of waters, and ion concentration
-TODO: Clean up this description 
-"""
-def run_calibration(
-    structures: list[str],
-    padding_nm: float = 1.2,
-    output: str = "calibration.json",
-    molarConcentration: float = 0.0,
-    randomSeed = 12345
-):
-    # Error checking 
-    # TODO see issues on github, many of the major long term ones such as potential for broken pdbs are there
-    # the most pressing issue is that we are currently assuming a clean PDB with no solvent which is not always the case
-    # adding hydrogens is also important
-
-    if not is_valid_json_path(output):
-        raise RuntimeError("Invalid output file name or path.")
-
-    # TODO this error never actually gets triggered, because the list is just
-    # "./trajseeder/structures/1UAO/*.pdb"
-    # and then errors later because that's not a real file.
-    if len(structures) == 0: 
-        raise RuntimeError("No structures provided for calibration.")
     
-    # Warn the user if there is an existing calibration file with the same name
-    if(os.path.exists(os.path.join(os.getcwd(), output))):
-        log("[red]This will overwrite a previous '" + output + "'. Would you like to continue? [Y/N] [/red]")
-        user_input = input().strip().lower()
-        if user_input != 'y':
-            log("Calibration aborted by user.")
-            return  
-
-    # Finished with error checking
-    print("Proceeding with calibration...\n")
-
-    userExtent, structuresCut = analysis_of_extents(structures)
-    cannonLen = userExtent + 2*padding_nm
-
-    random.seed(randomSeed)
-
-    modellers = equalize_solvation(structuresCut, cannonLen, molarConcentration*molar)
-
-    # Make a json file with the results of the calibration
-    # TODO This is a placeholder and must actually hold results
-    data = {
-    "this is a placeholder": "placeholder value"
-    }
-    with open(output, "w") as f:
-        json.dump(data, f)
-
-
-    print("Warning: This function is not fully implemented yet.")
-    return True
+    return modellers, cannonLen, minNumHOH

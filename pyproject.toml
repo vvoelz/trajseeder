@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trajseeder"
-version = "0.0.1"
+dynamic = ["version"] # Version tracked in trajseeder/__init__, updated automatically to avoid forgetting both
 description = "Seed molecular dynamics trajectories from structural ensembles"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     {name = "Vincent Voelz"},
     {name = "Preston Waters"}
@@ -23,4 +23,7 @@ Homepage = "https://github.com/vvoelz/trajseeder"
 trajseeder = "trajseeder.cli.main:main"
 
 [tool.setuptools.packages.find]
-include = ["trajseeder"]
+include = ["trajseeder*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "trajseeder.__version__"}

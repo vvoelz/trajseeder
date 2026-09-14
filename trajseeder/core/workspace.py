@@ -3,8 +3,10 @@ from pathlib import Path
 import csv
 from collections import Counter
 
-from trajseeder.jobs import SeedJob
+from trajseeder.core.jobs import SeedJob
 
+
+#TODO: This class seems like it will be useful for my version but is not yet implemented
 
 """ 
 workspace.py → tools to interact with a workspace

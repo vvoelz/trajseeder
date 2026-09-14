@@ -2,6 +2,7 @@
 A Python package to systematically prepare OpenMM simulations from an ensemble of protein structures
 
 Early placeholder release to reserve the package namespace.
+(This readme is currently outdated as implementation is ongoing. -Preston)
 
 <details> <summary><strong>Overview</strong></summary>
           
@@ -35,10 +36,8 @@ trajseeder separates the preparation workflow into three conceptual stages:
 Each preparation job:
 
 * constructs the molecular system
-* adds solvent and ions
-* minimizes the structure
-* equilibrates under NPT conditions
-* serializes the resulting OpenMM system and state
+* establishes a cannonical box length
+* adds the same number of solvent and ions to each box
 
 The resulting outputs are intended to serve as **starting points for production simulations**, which may be executed later on HPC clusters or distributed computing platforms.
 
@@ -47,7 +46,7 @@ The resulting outputs are intended to serve as **starting points for production 
 * Automated preparation of large structural ensembles
 * Reproducible project workspaces
 * Uniform solvent composition across all systems
-* Standardized equilibration protocol
+* Standardized equilibration protocol <- TODO: not really, no?
 * Independent, restartable preparation jobs
 * HPC-friendly filesystem layout with job sharding
 * Native OpenMM serialization for downstream simulation

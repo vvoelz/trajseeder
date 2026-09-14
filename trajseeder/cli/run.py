@@ -1,5 +1,5 @@
 import typer
-from trajseeder.workspace import ProjectWorkspace
+from trajseeder.core.workspace import ProjectWorkspace
 
 
 def run(

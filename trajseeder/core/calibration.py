@@ -64,10 +64,11 @@ def run_calibration(project_dir):
     
     modellers, cannonLen, numWaters = __equalize_solvation(structuresCut, userExtent, project_path/"config.json")
 
-    log(f"Saving calibrated structures in workspace: {calibrated_path}")
-    
     calibrated_path = project_path / "calibrated_conforms"
     calibrated_path.mkdir()
+
+    log(f"Saving calibrated structures in workspace: {calibrated_path}")
+
 
     for i, modeller in enumerate(modellers):
         output_path = calibrated_path / f"solvated_{i}.pdb"

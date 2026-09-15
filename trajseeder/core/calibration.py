@@ -81,7 +81,7 @@ def run_calibration(project_dir):
     "numWaters": numWaters,
     "numIons": "not implemented", #TODO implement, + do we want positive and negative count?
     }
-    with open(project_path / "calibration", "w") as f:
+    with open(project_path / "calibration.json", "w") as f:
         json.dump(data, f)
 
     log("Calibration complete!")

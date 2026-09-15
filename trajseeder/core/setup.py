@@ -4,15 +4,15 @@ import csv
 import json
 import glob
 
-
-    
+   
 def create_workspace(structures, config_file, project_dir):
     """ Create a workspace hierarchy of directories and create essential files for this project."""
     
     structures = __resolve_structures(structures)
 
-    if config_file and not __is_valid_json_path(config_file):
-        raise RuntimeError("Invalid config file name or path.")
+    if config_file:
+        config_path = Path(config_file).expanduser().resolve()
+        __validate_config(config_path)
 
     project_path, jobs_path, logs_path, conforms_path = __create_project_paths(project_dir)
 
@@ -21,9 +21,8 @@ def create_workspace(structures, config_file, project_dir):
     if config_file is None:
         __write_project_config(project_path)
     else:
-        shutil.copy(config_file, project_path / "config.json")
+        shutil.copy(config_path, project_path / "config.json")
         log(f"[setup] Copied user provided project config from {config_file}")
-        #TODO: Ensure user provied config file actually has everything we need in it
 
     for structure in structures:
         shutil.copy(structure, conforms_path)
@@ -34,10 +33,11 @@ def create_workspace(structures, config_file, project_dir):
         # we could have different versions of a calibrated_conforms/ file if we
         # wanted to run multiple kinds of jobs on the same set of structures.
         # You'd just have to move calibration.json and update manifest differently
+        # if you wanted it to be more than just different box size / waters with
+        # same calibration
         
     log(f"[setup] Completed file structure assembly.")
     log(f"[setup] Modify {project_dir}/config.json as desired before running calibrate command.")
-    #TODO: make sure this prints nice regardless of what you put in as project_dir
     
    
 # ---------------------------------------------------------------------
@@ -49,7 +49,7 @@ def log(msg: str) -> None:
 
 
 def __resolve_structures(args):
-    """Ensure we are passed a list of valid pdb files, glob as needed"""
+    """Ensure we are passed a list of pdb files, glob as needed"""
 
     structures = []
     unmatched = []
@@ -69,16 +69,29 @@ def __resolve_structures(args):
     return structures
 
 
-def __is_valid_json_path(path_str: str) -> bool:
-    """Ensure a valid path to an existing JSON file"""
+def __validate_config(config_path: Path):
+    """Validate user provided config"""
+    #TODO: validate that the values contained within user's json are acceptable
+
+    if config_path.suffix.lower() != ".json":
+        raise RuntimeError(f"[setup] Config file must be a .json file: {config_path}")
+
+    if not config_path.is_file():
+        raise RuntimeError(f"[setup] Config file does not exist: {config_path}")
 
     try:
-        path = Path(path_str)
-        path.resolve()
-        return path.suffix.lower() == '.json'
-        
-    except (OSError, ValueError):
-        return False
+        with open(config_path) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"[setup] Config file is not valid JSON: {config_path} ({e})")
+
+    default_path = Path(__file__).parent.parent / "calibration.json"
+    with open(default_path) as f:
+        default = json.load(f)
+
+    missing_keys = default.keys() - data.keys()
+    if missing_keys:
+        raise RuntimeError(f"[setup] User provided config file missing keys: {missing_keys}")
 
 
 def __create_project_paths(project_dir):

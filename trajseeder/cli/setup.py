@@ -13,7 +13,7 @@ def setup(
     ],
     config_file: Annotated[
         str | None,         
-        typer.Option(help="Configuration JSON file"),
+        typer.Option(help="Provide a configuration JSON file to replace default"),
     ] = None,
     project_dir: Annotated[
         str,

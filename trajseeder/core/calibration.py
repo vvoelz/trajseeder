@@ -4,6 +4,7 @@ import math
 import random
 import statistics
 
+from tqdm import tqdm
 from rich import print
 from pathlib import Path
 
@@ -19,7 +20,6 @@ from openmm.unit import nanometer, nanometers, molar
 
 
 def run_calibration(project_dir):
-
     """
     For a project established with "trajseeder plan", establishes cannonical 
     box size based on user input. Then solvates all structures in the project
@@ -64,10 +64,10 @@ def run_calibration(project_dir):
     
     modellers, cannonLen, numWaters = __equalize_solvation(structuresCut, userExtent, project_path/"config.json")
 
-    log(f"Saving calibrated structures in workspace: {calibrated_path}")
-    
     calibrated_path = project_path / "calibrated_conforms"
     calibrated_path.mkdir()
+
+    log(f"Saving calibrated structures in workspace: {calibrated_path}")
 
     for i, modeller in enumerate(modellers):
         output_path = calibrated_path / f"solvated_{i}.pdb"
@@ -85,7 +85,6 @@ def run_calibration(project_dir):
         json.dump(data, f)
 
     log("Calibration complete!")
-    log("Warning: This function is not fully implemented yet.")
 
 
 # ---------------------------------------------------------------------
@@ -233,8 +232,6 @@ def __equalize_solvation(structures, userExtent, config_path):
         A list of modeller objects, one model for each input structure, matching all input parameters and all
         having the same number of water molecules
     """
-    #TODO: This function is slowwwwww, see if you can speed it up or at least make it less opaque why
-
     with open(config_path) as f:
         config = json.load(f)
 
@@ -253,21 +250,22 @@ def __equalize_solvation(structures, userExtent, config_path):
 
     # Build initial models
     modellers = []
-    for structure in structures:
+    log("Building inital modellers.")
+    for structure in tqdm(structures):
         pdb = PDBFile(structure)
         modeller = Modeller(pdb.topology, pdb.positions)
         modellers.append(modeller)
 
-
     # Creates set of the pre-existing waters in a model so they are not overwritten later
+    log("Establishing pre-existing protected water molecules.")
     def HOH_ids(topology):
         return {(r.chain.id, r.id) for r in topology.residues() if r.name == 'HOH'}
     
-    protected_HOH_sets = [HOH_ids(m.topology) for m in modellers]
-
+    protected_HOH_sets = [HOH_ids(m.topology) for m in tqdm(modellers)]
 
     # Initial solvation of each conformation
-    for m in modellers:
+    log("Performing initial solvation of conformations.")
+    for m in tqdm(modellers):
         m.addSolvent(forcefield, 
                      model=model, 
                      boxSize=Vec3(cannonLen, cannonLen, cannonLen) * nanometers,
@@ -293,6 +291,7 @@ def __equalize_solvation(structures, userExtent, config_path):
     # IDs to these additions at the end of this function
 
     # Build a (residue:position) dict of unprotected waters in a model
+    log("Tracking added water molecules.")
     def added_HOH_positions(model, prot):
         waterPositions = {}
         for r in model.topology.residues():
@@ -302,13 +301,18 @@ def __equalize_solvation(structures, userExtent, config_path):
                 waterPositions[r] = model.positions[oxygen.index]
         return waterPositions
     
-    added_HOH_pos_dicts = [added_HOH_positions(m, p) for m, p in zip(modellers, protected_HOH_sets)]
+    added_HOH_pos_dicts = [
+    added_HOH_positions(m, p) 
+    for m, p in tqdm(zip(modellers, protected_HOH_sets), total=len(modellers))
+]
 
     # The minimum number of added water molecules across all conformations
     minNumHOH = min(len(pos_dict) for pos_dict in added_HOH_pos_dicts)
 
     # Remove surplus HOHs and add ions to each model
-    for model, addedHOHs, protHOHs in zip(modellers, added_HOH_pos_dicts, protected_HOH_sets):
+    log("Removing surplus water molecules and ionizing.")
+    for model, addedHOHs, protHOHs in tqdm(zip(modellers, added_HOH_pos_dicts, protected_HOH_sets), 
+                                         total=len(modellers)):
 
         surplus = len(addedHOHs) - minNumHOH
         model.delete(random.sample(list(addedHOHs), surplus))

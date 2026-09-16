@@ -2,7 +2,8 @@
 A Python package to systematically prepare OpenMM simulations from an ensemble of protein structures
 
 Early placeholder release to reserve the package namespace.
-(This readme is currently outdated as implementation is ongoing. -Preston)
+
+(This readme will be perpetually outdated leading up to release 1.0 as implementation is ongoing. -Preston)
 
 <details> <summary><strong>Overview</strong></summary>
           
@@ -16,7 +17,7 @@ Unlike traditional simulation setup tools that prepare one system at a time, tra
 
 Many modern molecular simulation workflows begin with an ensemble of structures obtained from various sources: 
 
-* an NMR-derived ensembls (i.e. MODELs in a PDB file)
+* an NMR-derived ensembles (i.e. MODELs in a PDB file)
 * cluster centers from conformational clustering of trajectory data
 * Markov state model exemplars
 * Generative AI models (e.g. BioEmu)
@@ -55,29 +56,17 @@ The resulting outputs are intended to serve as **starting points for production 
 ## Workflow
 
 ```text
-Input structure ensemble
+
+   trajseeder setup
           │
           ▼
-   trajseeder plan
+ modfiy calibration.json
           │
           ▼
-   modfiy calibration.json
+  trajseeder calibrate
           │
           ▼
-   trajseeder calibrate
-          │
-          ▼
-    <prepare jobs tbd>
-          │
-          ▼
- Project workspace
-   ├── config.json
-   ├── calibration.json
-   ├── manifest.csv
-   └── jobs/
-          │
-          ▼
-      trajseeder run
+    trajseeder run
           │
           ▼
 Equilibrated OpenMM simulation seeds
@@ -107,6 +96,8 @@ Current dependencies include:
 * MDTraj (mdtraj.org)
 * NumPy
 * Typer (command-line interface)
+* tqdm
+* TODO: ensure all dependencies are listed and reflected in toml file
 
 Additional scientific Python packages may be added as development continues.
 
@@ -147,7 +138,6 @@ Usage: trajseeder [OPTIONS] COMMAND [ARGS]...
 Commands:
     setup
     calibrate
-    plan
     run
     status
     inspect
@@ -194,7 +184,8 @@ The intent is to separate **global ensemble setup** from **per-structure prepara
 
 ### 1. Setup the file structure
 
-First, trajseeder builds a standard file structure to keep your project organized.
+First, trajseeder builds a standard file structure to keep your project organized
+and import the structures you will be working with.
 This step creates a configuration file (config.json by default) or allows the user
 to provide their own. The default file can be modified to fit the needs of your
 simulation.
@@ -204,12 +195,28 @@ trajseeder setup structures/*.pdb
   --config_file config.json
   --project_dir trajseeder_project
 ```
+The result is a file tree like this:
+
+```text
+trajseeder_project/
+├── config.json
+├── manifest.csv
+├── conforms/
+│    ├── structure_a.pdb
+│    ├── structure_b.pdb
+│    └── structure_c.pdb
+├── jobs/
+└── logs/
+```
+The project-level `config.json` stores simulation protocol settings such as force field files, timestep, constraints, nonbonded method, temperature, and pressure.
+
+The `manifest.csv` records the mapping between input structures and job IDs.
 
 ### 2. Calibrate the solvent environment
 
 Next, trajseeder uses provided input structures to allow the user to make informed decisions on size of
 cannonical box. This decision along with config.json solvates all structures under the same conditions
-and saves them to your project.
+and saves them as jobs to your project. The information on how they were solvated is saved to calibration.json.
 
 ```bash
 trajseeder calibrate trajseeder_project
@@ -223,53 +230,40 @@ This step is intended to determine parameters such as:
 * solvent padding
 * calibration metadata
 
-The output is:
-
-```text
-calibration.json
-```
-
-This file records the ensemble-level solvent calibration used by later stages.
-
-### 3. Plan a project workspace
-
-Note: I am working on this step next, this probably isn't how I am going to implement it exactly.
-
-Next, create a reproducible workspace containing one preparation job per input structure.
-
-```bash
-trajseeder plan structures/*.pdb \
-  --calibration calibration.json \
-  --project trajseeder_project
-```
-
-This creates a directory structure like:
+The project is updated:
 
 ```text
 trajseeder_project/
 ├── config.json
 ├── calibration.json
 ├── manifest.csv
+├── conforms/
+│    ├── structure_a.pdb
+│    ├── structure_b.pdb
+│    └── structure_c.pdb
 ├── jobs/
-│   └── 000/
-│       ├── 000000/
-│       │   ├── input.pdb
-│       │   ├── config.json
-│       │   └── status.txt
-│       └── 000001/
-│           ├── input.pdb
-│           ├── config.json
-│           └── status.txt
+│    ├── 000001/
+│    │   ├── input.pdb
+│    │   ├── config.json
+│    │   └── status.txt
+│    ├── 000002/
+│    │   ├── input.pdb
+│    │   ├── config.json
+│    │   └── status.txt
+│    └── 000003/
+│        ├── input.pdb
+│        ├── config.json
+│        └── status.txt
 └── logs/
 ```
 
-The project-level `config.json` stores simulation protocol settings such as force field files, timestep, constraints, nonbonded method, temperature, and pressure.
-
 The `calibration.json` stores ensemble-derived solvent parameters.
 
-The `manifest.csv` records the mapping between input structures and job IDs.
+Each project is intended to have one unique config.json, calibration.json, manifest.csv and, at most one job per
+structure.
 
-### 4. Run an individual preparation job
+
+### 3. Run an individual preparation job
 
 Each structure is prepared independently as a job.
 
@@ -292,7 +286,7 @@ serialize OpenMM system and state
 Expected final outputs for a completed job are:
 
 ```text
-jobs/000/000123/
+jobs/000123/
 ├── input.pdb
 ├── config.json
 ├── status.txt
@@ -304,7 +298,7 @@ jobs/000/000123/
 
 The serialized `system.xml` and `state.xml` files are intended to be used later for production simulations on distributed computing platforms.
 
-### 5. Run jobs on a cluster
+### 4. Run jobs on a cluster
 
 trajseeder is designed to work naturally with scheduler array jobs.
 
@@ -318,7 +312,7 @@ trajseeder run $SLURM_ARRAY_TASK_ID --project trajseeder_project
 
 Each job reads only its own job directory and writes only its own outputs, making the workflow safe for parallel execution.
 
-### 6. Check project status
+### 5. Check project status
 
 To summarize job progress:
 
@@ -337,7 +331,7 @@ failed: 23
 
 Job status is tracked using simple `status.txt` files inside each job directory.
 
-### 7. Inspect the ensemble
+### 6. Inspect the ensemble
 
 The `inspect` command is intended to provide quick diagnostics about the input structures.
 
@@ -352,7 +346,7 @@ This may report information such as:
 * approximate box-size requirements
 * possible problematic input files
 
-### 8. Retry failed jobs
+### 7. Retry failed jobs
 
 Failed jobs can be reset for another attempt.
 
@@ -362,7 +356,7 @@ trajseeder retry-failed --project trajseeder_project
 
 This command is intended to find jobs marked as `failed` and reset them to `pending`, or optionally emit a list of failed job IDs for resubmission.
 
-### 9. Verify completed outputs
+### 8. Verify completed outputs
 
 After a large preparation campaign, the `verify` command checks that outputs are present and readable.
 
@@ -377,7 +371,7 @@ This command is intended to detect issues such as:
 * incomplete job directories
 * failed or unknown job states
 
-### 10. Clean partial outputs
+### 9. Clean partial outputs
 
 For development or failed campaign cleanup:
 
@@ -394,8 +388,6 @@ This command is intended to remove partial outputs from failed jobs while preser
 trajseeder setup structures/*.pdb
 
 trajseeder calibrate trajseeder_project
-
-trajseeder plan "this isn't implemented!"
 
 trajseeder status --project trajseeder_project
 

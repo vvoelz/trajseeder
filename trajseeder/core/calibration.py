@@ -1,4 +1,4 @@
-import os
+import csv
 import json
 import math
 import random
@@ -58,21 +58,15 @@ def run_calibration(project_dir):
 
     log("Proceeding with calibration...")
 
-    userExtent, structuresCut = __analysis_of_extents(project_path / "conforms")
+    userExtent, structuresCut = __analyze_extents(project_path / "conforms")
 
     log("Equalizing solvation.")
     
     modellers, cannonLen, numWaters = __equalize_solvation(structuresCut, userExtent, project_path/"config.json")
 
-    calibrated_path = project_path / "calibrated_conforms"
-    calibrated_path.mkdir()
-
-    log(f"Saving calibrated structures in workspace: {calibrated_path}")
-
-    for i, modeller in enumerate(modellers):
-        output_path = calibrated_path / f"solvated_{i}.pdb"
-        with open(output_path, "w") as f:
-            PDBFile.writeFile(modeller.getTopology(), modeller.getPositions(), f)
+    log(f"Saving calibrated structures as jobs and writing manifest")
+    
+    __build_jobs_and_manifest(project_path, modellers, structuresCut)
 
     # Make a json file with the results of the calibration 
     data = {
@@ -185,7 +179,7 @@ def __print_histogram(data):
     print(f"\nconformations={n}  bins={bins}  bin width={bin_width:.2f}")
 
 
-def __analysis_of_extents(structures_path) -> tuple[float, list[str]]:
+def __analyze_extents(structures_path) -> tuple[float, list[str]]:
     """
     Input: a path to your project's structures
     Runs an analysis to inform user's choice for cannonical box length
@@ -302,9 +296,9 @@ def __equalize_solvation(structures, userExtent, config_path):
         return waterPositions
     
     added_HOH_pos_dicts = [
-    added_HOH_positions(m, p) 
-    for m, p in tqdm(zip(modellers, protected_HOH_sets), total=len(modellers))
-]
+        added_HOH_positions(m, p) 
+        for m, p in tqdm(zip(modellers, protected_HOH_sets), total=len(modellers))
+    ]
 
     # The minimum number of added water molecules across all conformations
     minNumHOH = min(len(pos_dict) for pos_dict in added_HOH_pos_dicts)
@@ -332,3 +326,30 @@ def __equalize_solvation(structures, userExtent, config_path):
                        residueTemplates=residueTemplates)
     
     return modellers, cannonLen, minNumHOH
+
+
+def __build_jobs_and_manifest(project_path, modellers, structuresCut):
+    """Save calibrated structures as jobs and write manifest"""
+
+    manifest_path = project_path / "manifest.csv"
+    with open(manifest_path, "a", newline="") as manifest_file:
+        writer = csv.writer(manifest_file)
+
+        for i, modeller in enumerate(modellers):
+
+            job_path = project_path / "jobs" / f"{i:06d}"
+            job_path.mkdir()
+
+            output_path = job_path / "input.pdb"
+            with open(output_path, "w") as f:
+                PDBFile.writeFile(modeller.getTopology(), modeller.getPositions(), f)
+
+            output_path = job_path / "status.json"
+            data = {
+                "status": "pending",
+                "errors": {}
+            }
+            with open(output_path, "w") as f:
+                json.dump(data, f)
+
+            writer.writerow([f"{i:06d}", f"{structuresCut[i]}"])

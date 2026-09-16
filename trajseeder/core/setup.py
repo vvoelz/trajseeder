@@ -27,14 +27,6 @@ def create_workspace(structures, config_file, project_dir):
     for structure in structures:
         shutil.copy(structure, conforms_path)
         log(f"[setup] Copied user provided structure, {structure} to project.")
-        # TODO ask Dr. Voelz if there is any point in doing this
-        # we can move this functionality to calibration and only copy/save the
-        # finished calibrated structures. The only point of doing it here is that
-        # we could have different versions of a calibrated_conforms/ file if we
-        # wanted to run multiple kinds of jobs on the same set of structures.
-        # You'd just have to move calibration.json and update manifest differently
-        # if you wanted it to be more than just different box size / waters with
-        # same calibration
         
     log(f"[setup] Completed file structure assembly.")
     log(f"[setup] Modify {project_dir}/config.json as desired before running calibrate command.")

@@ -344,12 +344,8 @@ def __build_jobs_and_manifest(project_path, modellers, structuresCut):
             with open(output_path, "w") as f:
                 PDBFile.writeFile(modeller.getTopology(), modeller.getPositions(), f)
 
-            output_path = job_path / "status.json"
-            data = {
-                "status": "pending",
-                "errors": {}
-            }
+            output_path = job_path / "status.txt"
             with open(output_path, "w") as f:
-                json.dump(data, f)
+                f.write("INITIALIZED")
 
             writer.writerow([f"{i:06d}", f"{structuresCut[i]}"])

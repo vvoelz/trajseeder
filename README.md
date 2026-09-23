@@ -3,7 +3,7 @@ A Python package to systematically prepare OpenMM simulations from an ensemble o
 
 Early placeholder release to reserve the package namespace.
 
-(This readme will be perpetually outdated leading up to release 1.0 as implementation is ongoing. -Preston)
+(This readme will be perpetually outdated, and may contain my personal notes leading up to release 1.0 as implementation is ongoing. -Preston)
 
 <details> <summary><strong>Overview</strong></summary>
           
@@ -244,40 +244,36 @@ trajseeder_project/
 ├── jobs/
 │    ├── 000001/
 │    │   ├── input.pdb
-│    │   ├── config.json
 │    │   └── status.txt
 │    ├── 000002/
 │    │   ├── input.pdb
-│    │   ├── config.json
 │    │   └── status.txt
 │    └── 000003/
 │        ├── input.pdb
-│        ├── config.json
 │        └── status.txt
 └── logs/
 ```
 
-The `calibration.json` stores ensemble-derived solvent parameters.
+`calibration.json` stores ensemble-derived solvent parameters.
 
 Each project is intended to have one unique config.json, calibration.json, manifest.csv and, at most one job per
 structure.
 
 
-### 3. Run an individual preparation job
+### 3. Run preparation jobs
 
-Each structure is prepared independently as a job.
+TODO: explain executors, default prep script, etc. update quickstart at top
 
 ```bash
-trajseeder run 000123 --project trajseeder_project
+trajseeder run trajseeder_project --all --executor default-serial
+trajseeder run trajseeder_project 1 003 2 --executor default-serial
 ```
 
 A job will eventually perform the full preparation protocol:
 
 ```text
-load input structure
+load solvated input structure
 build OpenMM topology/system
-add solvent and ions
-equalize water count
 minimize energy
 equilibrate under NPT conditions
 serialize OpenMM system and state
@@ -288,7 +284,6 @@ Expected final outputs for a completed job are:
 ```text
 jobs/000123/
 ├── input.pdb
-├── config.json
 ├── status.txt
 ├── topology.pdb
 ├── system.xml

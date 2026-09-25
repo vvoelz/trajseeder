@@ -1,4 +1,7 @@
+import logging
 from jobs import get_job_status, update_job_status
+from log_manager import *
+
 
 def run_one_job(project_path, job_id):
     """ 
@@ -8,14 +11,11 @@ def run_one_job(project_path, job_id):
     The various executors all have their own way of calling this function.
     but they all must use it to run jobs.
     """
-    
-    # TODO: Job failures are only caught on python exceptions
-    # this could be very problematic for parallel and slurm
-    # should not be too hard to give this function a "heartbeat"
-    # and then have status checker (implemented later) update
-    # any jobs that do not have a (recent) heartbeat.
 
-    # TODO: See notes on heartbeat and how to ensure catch
+
+    job_path = project_path / "jobs" / job_id
+    logger = create_logger(job_path, job_id)
+    heartbeat = Heartbeat(logger, interval=30)
 
     try:
 
@@ -25,27 +25,34 @@ def run_one_job(project_path, job_id):
             # running died and user has not checked status
             # (check status will reset failed / no heartbeat)
             return
-
-        update_job_status(project_path, job_id, "RUNNING")
         
-        # !!!!! Update log
+        # TODO clear the old log file if one exists?
+        # at least print a new thing is starting message
+
+        heartbeat.start()
+        update_job_status(project_path, job_id, "RUNNING")
+        logger.info(f"Starting job #{job_id}")
+        
+        
+        logger.info(f"Running provided preperation script.")
         # !!!!! run the job based on provided script
-        # !!!!! Update log
-        # !!!!! Save topology.pdb result (multiple log updates?)
+        logger.info(f"Preperation script complete")
+
+        logger.info(f"Saving results to topology.pdb")
+        # !!!!! Save topology.pdb
+
+        logger.info(f"Serializing results")
         # !!!!! Serialize results (multiple log updates?)
         # !!!!! (save system.xml and state.xml)
 
         update_job_status(project_path, job_id, "COMPLETE")
+        logger.info(f"Job completed!")
     
-    except:
+    except Exception as e:
         update_job_status(project_path, job_id, "FAILED")
-        # !!!!! Update log
+        logger.exception(f"Job failed: {e}")
+
+    finally:
+        heartbeat.stop()
 
     raise NotImplementedError("Function not implemented, oh no!")
-
-
-
-def check_heartbeat():
-    """ Check that a job is still running """
-
-    raise NotImplementedError("Function is not implemented yet.")

@@ -46,7 +46,7 @@ def resolve_job_ids(project_path: Path, job_ids: list[str]) -> list[str]:
     return list(set(resolved_jobs))
 
 
-def get_all_jobs_status(project_path: Path) -> None:
+def log_all_jobs_status(project_path: Path) -> None:
 
     # for each job, check its status, and add to the total
         # check heartbeats also
@@ -71,6 +71,13 @@ def get_job_status(project_path: Path, job_id: str) -> str:
 
 def update_job_status(project_path: Path, job_id: str, status: str) -> None:
     """ Update the status.txt file for a job"""
+    """
+    PENDING
+    RUNNING
+    COMPLETE
+    FAILED
+    CRASHED
+    """
 
     status_path = project_path / "jobs" / job_id / "status.txt"
 

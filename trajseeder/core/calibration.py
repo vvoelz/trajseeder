@@ -346,6 +346,6 @@ def __build_jobs_and_manifest(project_path, modellers, structuresCut):
 
             output_path = job_path / "status.txt"
             with open(output_path, "w") as f:
-                f.write("INITIALIZED")
+                f.write("PENDING")
 
             writer.writerow([f"{i:06d}", f"{structuresCut[i]}"])

@@ -9,9 +9,9 @@ class Executor(ABC):
     An Executor must NEVER
     - interact with protocol logic
     - touch OpenMM objects
-    - write to status.json/log.txt directly
+    - write to status.txt / job.log directly
 
-    Protocol is resolved inside run_one_job() grabbing it from WHERE???
+    Protocol is resolved inside run_one_job() by grabbing it from user project directory.
     One protocol per project!
     """
 

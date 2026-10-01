@@ -7,5 +7,5 @@ class DefaultParallelExecutor(Executor):
 
     #TODO: Look into the simulation object issue, make sure no conflict
 
-    def submit(self, project_path: Path, job_ids: list[int]):
+    def submit(self, project_path: Path, job_ids: list[str]):
         raise NotImplementedError("Local parallel execution is not implemented yet.")

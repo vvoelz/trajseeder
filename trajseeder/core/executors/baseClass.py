@@ -16,5 +16,5 @@ class Executor(ABC):
     """
 
     @abstractmethod
-    def submit(self, project_path: Path, job_ids: list[int]) -> None:
+    def submit(self, project_path: Path, job_ids: list[str]) -> None:
         raise NotImplementedError

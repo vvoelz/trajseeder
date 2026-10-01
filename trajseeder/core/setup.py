@@ -1,25 +1,26 @@
-import shutil
-from pathlib import Path
 import csv
 import json
 import glob
+import shutil
+from pathlib import Path
 
    
 def create_workspace(structures, config_file, project_dir):
     """ Create a workspace hierarchy of directories and create essential files for this project."""
     
-    structures = __resolve_structures(structures)
+    structures = _resolve_structures(structures)
 
     if config_file:
         config_path = Path(config_file).expanduser().resolve()
-        __validate_config(config_path)
+        _validate_config(config_path)
 
-    project_path, jobs_path, logs_path, conforms_path = __create_project_paths(project_dir)
+    project_path, jobs_path, conforms_path = _create_project_paths(project_dir)
 
-    __create_manifest(project_path)
+    _create_manifest(project_path)
+    _create_prep_script(project_path)
 
     if config_file is None:
-        __write_project_config(project_path)
+        _write_project_config(project_path)
     else:
         shutil.copy(config_path, project_path / "config.json")
         log(f"[setup] Copied user provided project config from {config_file}")
@@ -30,6 +31,7 @@ def create_workspace(structures, config_file, project_dir):
         
     log(f"[setup] Completed file structure assembly.")
     log(f"[setup] Modify {project_dir}/config.json as desired before running calibrate command.")
+    log(f"[setup] Modify {project_dir}/preparation_script.py as desired before running run command.")
     
    
 # ---------------------------------------------------------------------
@@ -40,7 +42,7 @@ def log(msg: str) -> None:
     print(msg, flush=True)
 
 
-def __resolve_structures(args):
+def _resolve_structures(args):
     """Ensure we are passed a list of pdb files, glob as needed"""
 
     structures = []
@@ -61,7 +63,7 @@ def __resolve_structures(args):
     return structures
 
 
-def __validate_config(config_path: Path):
+def _validate_config(config_path: Path):
     """Validate user provided config"""
     #TODO: validate that the values contained within user's json are acceptable
 
@@ -86,7 +88,7 @@ def __validate_config(config_path: Path):
         raise RuntimeError(f"[setup] User provided config file missing keys: {missing_keys}")
 
 
-def __create_project_paths(project_dir):
+def _create_project_paths(project_dir):
     """Build the directories for the project."""
 
     project_path = Path(project_dir).expanduser().resolve()
@@ -101,18 +103,14 @@ def __create_project_paths(project_dir):
     jobs_path.mkdir()
     log(f"[setup] Created jobs dir in workspace: {jobs_path}")
 
-    logs_path = project_path / "logs"
-    logs_path.mkdir()
-    log(f"[setup] Created logs dir in workspace: {logs_path}")
-
     conforms_path = project_path / "conforms"
     conforms_path.mkdir()
     log(f"[setup] Created conforms dir in workspace: {conforms_path}")
 
-    return (project_path, jobs_path, logs_path, conforms_path)
+    return (project_path, jobs_path, conforms_path)
 
 
-def __write_project_config(project_path):
+def _write_project_config(project_path: Path):
     """Write the project-level config.json file."""
 
     config = {
@@ -157,7 +155,7 @@ def __write_project_config(project_path):
     log(f"[setup] Wrote project config: {config_path}")
 
 
-def __create_manifest(project_path):
+def _create_manifest(project_path: Path):
     """Create the manifest.csv file."""
 
     manifest_path = project_path / "manifest.csv"
@@ -168,6 +166,19 @@ def __create_manifest(project_path):
         writer.writerow(["job_id", "structure_file"])
 
     log(f"[setup] Created manifest: {manifest_path}")
+
+
+def _create_prep_script(project_path: Path):
+    """ 
+    Copy the default preparation script into
+    the project for the user to modify
+    """
+    prep_script_path = project_path / "preparation_script.py"
+
+    source = Path(__file__).resolve().parent.parent.parent / "prepDefaultDoNotModify.py"
+    shutil.copy2(source, prep_script_path)
+
+    log(f"[setup] Created preparation script: {prep_script_path}")
 
 
 

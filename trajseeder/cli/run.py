@@ -31,6 +31,7 @@ def run(
     project_path = Path(project_dir).expanduser().resolve()
 
     resolved_ids = get_all_job_ids(project_path) if all_jobs else resolve_job_ids(project_path, job_ids)
+    #TODO: this should error if the user hasn't run calibrate (manifest empty)
 
     executor_version = EXECUTORS[executor]
     executor_version().submit(project_path=project_path, job_ids=resolved_ids)

@@ -1,9 +1,11 @@
-import logging
-from jobs import get_job_status, update_job_status
-from log_manager import *
+import importlib.util
+from openmm import *
+from openmm.app import *
+from .log_manager import *
+from .jobs import get_job_status, update_job_status
 
 
-def run_one_job(project_path, job_id):
+def run_one_job(project_path: Path, job_id: str):
     """ 
     Run a single job based on the user's protocol.
     The protocol will be grabbed from the project directory automatically.
@@ -12,47 +14,133 @@ def run_one_job(project_path, job_id):
     but they all must use it to run jobs.
     """
 
-
     job_path = project_path / "jobs" / job_id
     logger = create_logger(job_path, job_id)
     heartbeat = Heartbeat(logger, interval=30)
 
     try:
 
-        if get_job_status(project_path, job_id) == "RUNNING":
+        status = get_job_status(project_path, job_id)
+        if  status == "RUNNING" or status == "COMPLETE":
             # Prevents the same job from running twice at the same time
+            # Or rerunning finished job
             # TODO: should this check heartbeat? maybe previous
             # running died and user has not checked status
             # (check status will reset failed / no heartbeat)
+            logger.info(f"Job already complete, skipping.")
             return
         
         # TODO clear the old log file if one exists?
+        # and other files?
         # at least print a new thing is starting message
-
-        heartbeat.start()
+        
         update_job_status(project_path, job_id, "RUNNING")
         logger.info(f"Starting job #{job_id}")
+        heartbeat.start()
+        print(f"Starting job #{job_id}", flush=True)
         
-        
+        # Run preparation script
         logger.info(f"Running provided preperation script.")
-        # !!!!! run the job based on provided script
+        preparedModeller, simulation = __run_user_script(job_path)
         logger.info(f"Preperation script complete")
 
+        # Save completed topology
         logger.info(f"Saving results to topology.pdb")
-        # !!!!! Save topology.pdb
+        topology_path = job_path / "topology.pdb"
+        with open(topology_path, "w") as f:
+            PDBFile.writeFile(preparedModeller.topology, preparedModeller.positions, f)
 
         logger.info(f"Serializing results")
-        # !!!!! Serialize results (multiple log updates?)
-        # !!!!! (save system.xml and state.xml)
 
+        # Save system from the simulation
+        system_path = job_path / "system.xml"
+        with open(system_path, 'w') as f:
+            f.write(XmlSerializer.serialize(simulation.system))
+
+        # Save state from the simulation
+        state_path = job_path / "state.xml"
+        state = simulation.context.getState(getPositions=True, getVelocities=True)
+        with open(state_path, 'w') as f:
+            f.write(XmlSerializer.serialize(state))
+
+        # Job succeeded
         update_job_status(project_path, job_id, "COMPLETE")
         logger.info(f"Job completed!")
+        print(f"Finished job #{job_id}", flush=True)
     
     except Exception as e:
+
+        # Job failed
         update_job_status(project_path, job_id, "FAILED")
         logger.exception(f"Job failed: {e}")
+        print(f"FAILED job #{job_id}", flush=True)
 
     finally:
         heartbeat.stop()
 
-    raise NotImplementedError("Function not implemented, oh no!")
+    # TODO: should jobs report to stdout at all? probably useful for them to do that.
+    # Be mindful of "propogate=false" flag
+    # just doing print statements for now
+    # Add second handler for the logger? 
+    # heartbeat is also currently .info
+
+
+# ---------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------
+
+def __run_user_script(job_path: Path):
+    """
+    Input: A path to a specific job's dir
+
+    Passes off the job's solvated modeller made in calibration step to the user's
+    script (placed in known location in project folder by setup step,
+    modified by user)
+
+    Returns: whatever the user's preparation_script returns
+    (expected to be the finished simulation object)
+    (modeller is passed by refrence so it's modified without
+    need for a return)
+    """
+
+    pdb_path = job_path / "input.pdb"
+    script_path = job_path.parent.parent / "preparation_script.py"
+    config_path = job_path.parent.parent / "config.json"
+
+    if not pdb_path.is_file():
+        raise FileNotFoundError(f"Input PDB not found: {pdb_path}")
+    if not script_path.is_file():
+        raise FileNotFoundError(f"Preparation script not found: {script_path}")
+
+    # Loading in the user's preparation script
+    spec = importlib.util.spec_from_file_location(
+        f"trajseeder_user_prep_script", script_path
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load script: {script_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    run_preparation_script = getattr(module, "run_preparation_script", None)
+    if not callable(run_preparation_script):
+        raise AttributeError(
+            f"{script_path.name} must define a function "
+            f"'run_preparation_script(modeller: Modeller, forcefield: forcefield)'"
+        )
+
+    # Load the pdb file (solvated in calibrate step)
+    pdb = PDBFile(str(pdb_path))
+
+    # Specify the forcefield (from calibration file)
+    with open(config_path) as f:
+        config = json.load(f)
+    forcefield = ForceField(config["forcefield_files"][0], config["forcefield_files"][1])
+
+    # Create a Modeller object
+    modeller = Modeller(pdb.topology, pdb.positions)
+
+    # Run preparation script on modeller solvated back in calibrate step
+    simulation = run_preparation_script(modeller, forcefield)
+
+    return modeller, simulation

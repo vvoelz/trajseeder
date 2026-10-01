@@ -47,14 +47,14 @@ def run_calibration(project_dir):
     # Check for essential files, are we actually in a project?
     if not(project_path / "config.json").exists(): 
         raise RuntimeError(f"config.json is missing from {project_dir}.")
+    if not(project_path / "preparation_script.py").exists(): 
+        raise RuntimeError(f"preparation_script.py is missing from {project_dir}.")
     if not(project_path / "manifest.csv").exists(): 
         raise RuntimeError(f"manifest.csv is missing from {project_dir}.")
     if not(project_path / "conforms").exists(): 
         raise RuntimeError(f"conforms/ is missing from {project_dir}.")
     if not(project_path / "jobs").exists(): 
         raise RuntimeError(f"jobs/ is missing from {project_dir}.")
-    if not(project_path / "logs").exists(): 
-        raise RuntimeError(f"logs/ is missing from {project_dir}.")
 
     log("Proceeding with calibration...")
 
@@ -329,7 +329,7 @@ def __equalize_solvation(structures, userExtent, config_path):
 
 
 def __build_jobs_and_manifest(project_path, modellers, structuresCut):
-    """Save calibrated structures as jobs and write manifest"""
+    """Save calibrated structures as jobs and write manifest and log"""
 
     manifest_path = project_path / "manifest.csv"
     with open(manifest_path, "a", newline="") as manifest_file:
@@ -347,5 +347,9 @@ def __build_jobs_and_manifest(project_path, modellers, structuresCut):
             output_path = job_path / "status.txt"
             with open(output_path, "w") as f:
                 f.write("PENDING")
+
+            output_path = job_path / "job.log"
+            with open(output_path, "w") as f:
+                f.write("")
 
             writer.writerow([f"{i:06d}", f"{structuresCut[i]}"])

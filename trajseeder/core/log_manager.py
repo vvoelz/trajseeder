@@ -2,21 +2,19 @@ import json
 import logging
 import threading
 from pathlib import Path
-from typing import override
 from datetime import datetime, timezone
 
 
 class JsonlFormatter(logging.Formatter):
     """ Formats each log record as JSON object (1 per line) """
 
-    @override
     def format(self, record: logging.LogRecord) -> str:
         payload = {
             "timestamp": datetime.fromtimestamp(
                 record.created, tz=timezone.utc
             ).isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
+            #"level": record.levelname,
+            #"logger": record.name,
             "message": record.getMessage(),
         }
 
@@ -26,13 +24,14 @@ class JsonlFormatter(logging.Formatter):
         return json.dumps(payload)
 
 
-def create_logger(job_path: str, job_id: str) -> logging.Logger:
+def create_logger(job_path: Path, job_id: str) -> logging.Logger:
 
     logger = logging.getLogger(f"Job#{job_id}")
 
     if not logger.handlers:
         logger.setLevel(logging.INFO)
-        handler = logging.FileHandler(job_path)
+        log_path = job_path / "job.log"
+        handler = logging.FileHandler(log_path)
         handler.setFormatter(JsonlFormatter())
         logger.addHandler(handler)
         logger.propagate = False

@@ -2,7 +2,8 @@
 import typer
 from pathlib import Path
 from typing import Annotated
-
+from trajseeder.core.executors import EXECUTORS
+from trajseeder.core.jobs import clean_up_failed
 
 def retry_failed(
     project_dir: Annotated[
@@ -14,7 +15,10 @@ def retry_failed(
         typer.Option(help="default-serial | default-parallel | (others, eventually...)"),
     ] = "default-serial",
 ):
-        
+    #TODO: this should error if the user hasn't run calibrate (manifest empty)  
+
     project_path = Path(project_dir).expanduser().resolve()
-    # TODO: Call the same stuff clean did, then run on the jobs that were cleaned up
-    raise NotImplementedError("retry_failed not implemented yet, sorry!")
+    job_ids = clean_up_failed(project_path)   
+    
+    executor_version = EXECUTORS[executor]
+    executor_version().submit(project_path=project_path, job_ids=job_ids)

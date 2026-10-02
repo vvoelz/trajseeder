@@ -3,7 +3,6 @@ from typing import Annotated
 from trajseeder.core.setup import create_workspace
 
 
-
 def setup(
     structures: Annotated[
         list[str],

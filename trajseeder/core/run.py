@@ -20,28 +20,27 @@ def run_one_job(project_path: Path, job_id: str):
 
     try:
 
-        status = get_job_status(project_path, job_id)
-        if  status == "RUNNING" or status == "COMPLETE":
-            # Prevents the same job from running twice at the same time
-            # Or rerunning finished job
-            # TODO: should this check heartbeat? maybe previous
-            # running died and user has not checked status
-            # (check status will reset failed / no heartbeat)
+        # Catch multiple run issues
+        status = get_job_status(job_path)
+        if status == "COMPLETE":
             logger.info(f"Job already complete, skipping.")
-            return
+            return     
+        elif status == "RUNNING":
+            if time_since_last_heartbeat(job_path) > 300:
+                logger.info(f"Previous job run detected as failure (silent crash). Continuing with re-run.")
+            else:
+                logger.info(f"User attempted to run job that is already running.")
+                return
         
-        # TODO clear the old log file if one exists?
-        # and other files?
-        # at least print a new thing is starting message
-        
-        update_job_status(project_path, job_id, "RUNNING")
+        # Start run logging
+        update_job_status(job_path, "RUNNING")
         logger.info(f"Starting job #{job_id}")
         heartbeat.start()
         print(f"Starting job #{job_id}", flush=True)
         
         # Run preparation script
         logger.info(f"Running provided preperation script.")
-        preparedModeller, simulation = __run_user_script(job_path)
+        preparedModeller, simulation = _run_user_script(job_path)
         logger.info(f"Preperation script complete")
 
         # Save completed topology
@@ -50,32 +49,33 @@ def run_one_job(project_path: Path, job_id: str):
         with open(topology_path, "w") as f:
             PDBFile.writeFile(preparedModeller.topology, preparedModeller.positions, f)
 
-        logger.info(f"Serializing results")
-
         # Save system from the simulation
+        logger.info(f"Saving system to system.xml")
         system_path = job_path / "system.xml"
         with open(system_path, 'w') as f:
             f.write(XmlSerializer.serialize(simulation.system))
 
         # Save state from the simulation
+        logger.info(f"Saving state to state.xml")
         state_path = job_path / "state.xml"
         state = simulation.context.getState(getPositions=True, getVelocities=True)
         with open(state_path, 'w') as f:
             f.write(XmlSerializer.serialize(state))
 
         # Job succeeded
-        update_job_status(project_path, job_id, "COMPLETE")
+        update_job_status(job_path, "COMPLETE")
         logger.info(f"Job completed!")
         print(f"Finished job #{job_id}", flush=True)
     
     except Exception as e:
 
         # Job failed
-        update_job_status(project_path, job_id, "FAILED")
+        update_job_status(job_path, "FAILED")
         logger.exception(f"Job failed: {e}")
         print(f"FAILED job #{job_id}", flush=True)
 
     finally:
+        
         heartbeat.stop()
 
     # TODO: should jobs report to stdout at all? probably useful for them to do that.
@@ -89,7 +89,7 @@ def run_one_job(project_path: Path, job_id: str):
 # Helper functions
 # ---------------------------------------------------------------------
 
-def __run_user_script(job_path: Path):
+def _run_user_script(job_path: Path):
     """
     Input: A path to a specific job's dir
 

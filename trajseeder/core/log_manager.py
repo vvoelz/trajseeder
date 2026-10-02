@@ -66,13 +66,15 @@ class Heartbeat:
             self._thread.join(timeout=5)
 
 
-def time_since_last_heartbeat(log_path: Path) -> float:
+def time_since_last_heartbeat(job_path: Path) -> float:
     """
-    Takes in the path to job.log
+    Takes in the path to a job
     Returns seconds since the last heartbeat
     Returns float('inf') if no heartbeat has ever been recorded
     to catch edge case of crash before heartbeat.
     """
+    log_path = job_path / "job.log"
+
     if not log_path.exists():
         return None
 

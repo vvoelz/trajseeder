@@ -31,7 +31,7 @@ trajseeder addresses this by applying a single, standardized preparation protoco
 trajseeder separates the preparation workflow into three conceptual stages:
 
 1. **Setup** build an initial file system to contain your project.
-2. **Calibrate** solvate structures under equivalent conditions saving relevant information.
+2. **Calibrate** solvate structures under equivalent conditions saving relevant information and populating jobs.
 3. **Run** each preparation job independently to produce equilibrated OpenMM simulation seeds.
 
 
@@ -61,6 +61,7 @@ The resulting outputs are intended to serve as **starting points for production 
           │
           ▼
  modfiy calibration.json
+ modify preparation_script.py
           │
           ▼
   trajseeder calibrate
@@ -164,9 +165,7 @@ trajseeder setup structures/*.pdb
 
 trajseeder calibrate trajseeder_project
 
-trajseeder plan <TODO: something>
-
-trajseeder run 0 --project my_project
+trajseeder run trajseeder_project --all
 ```
 </details>
 
@@ -177,7 +176,7 @@ trajseeder run 0 --project my_project
 trajseeder is designed around a staged workflow:
 
 ```text
-setup → calibrate → plan → run → inspect/status/retry/verify
+setup → calibrate → run → inspect/status/retry/verify
 ```
 
 The intent is to separate **global ensemble setup** from **per-structure preparation jobs**.
@@ -186,9 +185,12 @@ The intent is to separate **global ensemble setup** from **per-structure prepara
 
 First, trajseeder builds a standard file structure to keep your project organized
 and import the structures you will be working with.
-This step creates a configuration file (config.json by default) or allows the user
+This step creates a configuration file (config.json) or allows the user
 to provide their own. The default file can be modified to fit the needs of your
 simulation.
+This step also creates preparation_script.py, a script outlining a standard
+openMM protocol to be applied to all solvated conforms in a later step. 
+This file can be modified according to the user's wishes.
 
 ```bash
 trajseeder setup structures/*.pdb
@@ -201,6 +203,7 @@ The result is a file tree like this:
 trajseeder_project/
 ├── config.json
 ├── manifest.csv
+├── preparation_script.py
 ├── conforms/
 │    ├── structure_a.pdb
 │    ├── structure_b.pdb
@@ -208,9 +211,11 @@ trajseeder_project/
 ├── jobs/
 └── logs/
 ```
-The project-level `config.json` stores simulation protocol settings such as force field files, timestep, constraints, nonbonded method, temperature, and pressure.
+`config.json` stores project-level simulation protocol settings such as force field files, timestep, constraints, nonbonded method, temperature, and pressure.
 
-The `manifest.csv` records the mapping between input structures and job IDs.
+`manifest.csv` records the mapping between input structures and job IDs.
+
+`preparation_script.py` outlines a standard openMM protocol to be applied to all solvated conforms. It is able to be modified.
 
 ### 2. Calibrate the solvent environment
 
@@ -256,26 +261,32 @@ trajseeder_project/
 
 `calibration.json` stores ensemble-derived solvent parameters.
 
-Each project is intended to have one unique config.json, calibration.json, manifest.csv and, at most one job per
+Each project is intended to have one unique config.json, calibration.json, manifest.csv, preparation_script.py and, at most one job per
 structure.
 
 
 ### 3. Run preparation jobs
 
-TODO: explain executors, default prep script, etc. update quickstart at top
+Now that each conformation has been solvated, a standard protocol needs to be run on each of them to
+prepare the for simulation on HPC or distributed computing. Trajseeder provides various executors to 
+determine how this process is done. Currently only default-serial is available, which runs jobs one 
+after another. 
+
+TODO: make help explain options and write a quick summary of them here.
+
 
 ```bash
 trajseeder run trajseeder_project --all --executor default-serial
-trajseeder run trajseeder_project 1 003 2 --executor default-serial
+trajseeder run trajseeder_project 1 2 3 --executor default-serial
 ```
 
-A job will eventually perform the full preparation protocol:
+A job will eventually perform the full preparation protocol, by default:
 
 ```text
 load solvated input structure
 build OpenMM topology/system
 minimize energy
-equilibrate under NPT conditions
+equilibrate under NVT and NPT conditions
 serialize OpenMM system and state
 ```
 

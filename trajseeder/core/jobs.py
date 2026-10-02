@@ -1,5 +1,6 @@
 import csv
 from pathlib import Path
+from trajseeder.core.log_manager import time_since_last_heartbeat
 
 
 def get_all_job_ids(project_path: Path) -> list[str]:
@@ -48,38 +49,57 @@ def resolve_job_ids(project_path: Path, job_ids: list[str]) -> list[str]:
 
 def log_all_jobs_status(project_path: Path) -> None:
 
-    # for each job, check its status, and add to the total
-        # check heartbeats also
-    # then print the totals
+    jobs_path = project_path / "jobs"
 
-    # INITIALIZED: 4213 
-    # RUNNING: 84
-    # COMPLETE: 5680
-    # FAILED: 23
+    pending = 0
+    running = 0
+    complete = 0
+    failed = 0
 
-    raise NotImplementedError("Function is not implemented yet.")
+    for job_path in jobs_path.iterdir():
+
+        status = get_job_status(job_path)
+        
+        if status == "PENDING":
+            pending+=1
+        elif status == "RUNNING":
+            if time_since_last_heartbeat(job_path) > 350:
+                update_job_status(job_path, "FAILED")
+                failed+=1
+            else:
+                running+=1
+        elif status == "COMPLETE":
+            complete+=1
+        elif status == "FAILED":
+            failed+=1
+        else:
+            # If nothing matches, something broke
+            failed+=1
+
+    print(f"PENDING: {pending}")
+    print(f"RUNNING: {running}")
+    print(f"COMPLETE: {complete}")
+    print(f"FAILED: {failed}")
 
 
-def get_job_status(project_path: Path, job_id: str) -> str:
+def get_job_status(job_path: Path) -> str:
     """ Return the current status of a job """
 
-    status_path = project_path / "jobs" / job_id / "status.txt"
+    status_path = job_path / "status.txt"
 
     with open(status_path, 'r') as f:
         return f.read()
 
 
-def update_job_status(project_path: Path, job_id: str, status: str) -> None:
+def update_job_status(job_path: Path, status: str) -> None:
     """ Update the status.txt file for a job"""
     """
     PENDING
     RUNNING
     COMPLETE
     FAILED
-    CRASHED
     """
-
-    status_path = project_path / "jobs" / job_id / "status.txt"
+    status_path = job_path / "status.txt"
 
     with open(status_path, "w") as f:
         f.write(status)

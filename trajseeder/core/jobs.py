@@ -63,7 +63,7 @@ def log_all_jobs_status(project_path: Path) -> None:
         if status == "PENDING":
             pending+=1
         elif status == "RUNNING":
-            if time_since_last_heartbeat(job_path) > 350:
+            if time_since_last_heartbeat(job_path) > 150:
                 update_job_status(job_path, "FAILED")
                 failed+=1
             else:

@@ -26,7 +26,7 @@ def run_one_job(project_path: Path, job_id: str):
             logger.info(f"Job already complete, skipping.")
             return     
         elif status == "RUNNING":
-            if time_since_last_heartbeat(job_path) > 300:
+            if time_since_last_heartbeat(job_path) > 150:
                 logger.info(f"Previous job run detected as failure (silent crash). Continuing with re-run.")
             else:
                 logger.info(f"User attempted to run job that is already running.")

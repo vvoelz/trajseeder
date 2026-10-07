@@ -40,7 +40,7 @@ def run_one_job(project_path: Path, job_id: str):
         
         # Run preparation script
         logger.info(f"Running provided preparation script.")
-        preparedModeller, simulation = _run_user_script(job_path)
+        simulation = _run_user_script(job_path, logger)
         logger.info(f"Preparation script complete")
 
         # Save system from the simulation
@@ -69,8 +69,6 @@ def run_one_job(project_path: Path, job_id: str):
                 keepIds=True,
             )
 
-
-
         # Job succeeded
         update_job_status(job_path, "COMPLETE")
         logger.info(f"Job completed!")
@@ -98,7 +96,7 @@ def run_one_job(project_path: Path, job_id: str):
 # Helper functions
 # ---------------------------------------------------------------------
 
-def _run_user_script(job_path: Path):
+def _run_user_script(job_path: Path, logger):
     """
     Input: A path to a specific job's dir
 
@@ -135,7 +133,7 @@ def _run_user_script(job_path: Path):
     if not callable(run_preparation_script):
         raise AttributeError(
             f"{script_path.name} must define a function "
-            f"'run_preparation_script(modeller: Modeller, forcefield: forcefield)'"
+            f"'run_preparation_script(modeller: Modeller, forcefield: forcefield, logger)'"
         )
 
     # Load the pdb file (solvated in calibrate step)
@@ -150,6 +148,6 @@ def _run_user_script(job_path: Path):
     modeller = Modeller(pdb.topology, pdb.positions)
 
     # Run preparation script on modeller solvated back in calibrate step
-    simulation = run_preparation_script(modeller, forcefield)
+    simulation = run_preparation_script(modeller, forcefield, logger)
 
-    return modeller, simulation
+    return simulation

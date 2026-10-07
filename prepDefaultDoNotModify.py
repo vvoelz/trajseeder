@@ -18,28 +18,41 @@ system and state.
 
 Whatever you have in this function will be run on
 each job you call with trajseeder run.
+
+If you would like to have your log updated, a python logger is passed to this
+function to be used as you see fit. Examples are provided here, but the assumption
+is that you are familiar with python logging.
+
+logger.info(f"Your message here")
+logger.error(f"Oh no, an error!")
 """
 
-def run_preparation_script(modeller: Modeller, forcefield: forcefield) -> Simulation:
+def run_preparation_script(modeller: Modeller, forcefield: forcefield, logger) -> Simulation:
 	
 	# Create a system
+	logger.info(f"User script: Creating system")
 	system = forcefield.createSystem(modeller.topology, nonbondedMethod=PME, nonbondedCutoff=1.0*nanometer, constraints=HBonds)
 
 	# Define the integrator
+	logger.info(f"User script: Defining integrator")
 	integrator = LangevinMiddleIntegrator(300*kelvin, 1/picosecond, 0.002*picoseconds) 
 	
-	# Create the Simulation
+	# Create the simulation
+	logger.info(f"User script: Creating simulation")
 	simulation = Simulation(modeller.topology, system, integrator)
 	simulation.context.setPositions(modeller.positions)
 	simulation.context.setVelocitiesToTemperature(300*kelvin)
 
 	# Minimize energy
+	logger.info(f"User script: Minimizing energy")
 	simulation.minimizeEnergy()
 
 	# NVT
+	logger.info(f"User script: Running NVT")
 	simulation.step(10000)
 
 	# NPT
+	logger.info(f"User script: Running NPT")
 	system.addForce(MonteCarloBarostat(1*bar, 300*kelvin))
 	simulation.context.reinitialize(preserveState=True)
 	simulation.step(10000)

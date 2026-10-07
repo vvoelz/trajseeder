@@ -88,7 +88,20 @@ def get_job_status(job_path: Path) -> str:
     status_path = job_path / "status.txt"
 
     with open(status_path, 'r') as f:
-        return f.read()
+        status = f.read()
+    
+    if status == "PENDING":
+        return status
+    elif status == "RUNNING":
+        return status  
+    elif status == "COMPLETE":
+        return status
+    elif status == "FAILED":
+        return status
+    else:
+        # Catch malformed writes
+        update_job_status(job_path, "FAILED")
+        return "FAILED"
 
 
 def update_job_status(job_path: Path, status: str) -> None:
@@ -118,7 +131,7 @@ def clean_up_failed(project_path: Path) -> list[str]:
 
         if (get_job_status(job_path) == "FAILED" 
             or (get_job_status(job_path) == "RUNNING" 
-                and time_since_last_heartbeat() > 150)):
+                and time_since_last_heartbeat(job_path) > 150)):
             
             print(f"Cleaning up job #{job_path.name}", flush=True)
             topo_path = job_path / "topology.pdb"
@@ -134,4 +147,4 @@ def clean_up_failed(project_path: Path) -> list[str]:
 
             job_list.append(job_path.name) 
 
-    return job_list 
+    return job_list

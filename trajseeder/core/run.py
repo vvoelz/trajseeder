@@ -39,15 +39,9 @@ def run_one_job(project_path: Path, job_id: str):
         print(f"Starting job #{job_id}", flush=True)
         
         # Run preparation script
-        logger.info(f"Running provided preperation script.")
+        logger.info(f"Running provided preparation script.")
         preparedModeller, simulation = _run_user_script(job_path)
-        logger.info(f"Preperation script complete")
-
-        # Save completed topology
-        logger.info(f"Saving results to topology.pdb")
-        topology_path = job_path / "topology.pdb"
-        with open(topology_path, "w") as f:
-            PDBFile.writeFile(preparedModeller.topology, preparedModeller.positions, f)
+        logger.info(f"Preparation script complete")
 
         # Save system from the simulation
         logger.info(f"Saving system to system.xml")
@@ -61,6 +55,21 @@ def run_one_job(project_path: Path, job_id: str):
         state = simulation.context.getState(getPositions=True, getVelocities=True)
         with open(state_path, 'w') as f:
             f.write(XmlSerializer.serialize(state))
+
+        # Save completed topology
+        logger.info(f"Saving results to topology.pdb")
+        topology_path = job_path / "topology.pdb"
+        simulation.topology.setPeriodicBoxVectors(state.getPeriodicBoxVectors())
+        # TODO: can this cause issues with unwrapped positions?
+        with open(topology_path, "w") as f:
+            PDBFile.writeFile(
+                simulation.topology,
+                state.getPositions(),
+                file=f,
+                keepIds=True,
+            )
+
+
 
         # Job succeeded
         update_job_status(job_path, "COMPLETE")

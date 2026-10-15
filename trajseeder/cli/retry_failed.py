@@ -3,21 +3,22 @@ import typer
 from pathlib import Path
 from typing import Annotated
 from trajseeder.core.executors import EXECUTORS
-from trajseeder.core.jobs import clean_up_failed
+from trajseeder.core.jobs import clean_up_failed, confirm_calibrated
 
 def retry_failed(
     project_dir: Annotated[
         str,
         typer.Argument(help="Project directory name"),
-    ] = "trajseeder_project",
+    ],
     executor: Annotated[
         str,
         typer.Option(help="default-serial | default-parallel | (others, eventually...)"),
     ] = "default-serial",
 ):
-    #TODO: this should error if the user hasn't run calibrate (manifest empty)  
+    """ Re-run all failed jobs using user modified script and specified executor. """
 
     project_path = Path(project_dir).expanduser().resolve()
+    confirm_calibrated(project_path)
     job_ids = clean_up_failed(project_path)   
     
     executor_version = EXECUTORS[executor]

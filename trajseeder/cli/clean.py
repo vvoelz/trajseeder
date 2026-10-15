@@ -1,16 +1,17 @@
 import typer
 from pathlib import Path
 from typing import Annotated
-from trajseeder.core.jobs import clean_up_failed
+from trajseeder.core.jobs import clean_up_failed, confirm_calibrated
 
 
 def clean(
     project_dir: Annotated[
         str,
-        typer.Option(help="Project directory name"),
-    ] = "trajseeder_project"
+        typer.Argument(help="Project directory name"),
+    ]
 ):
-    
-    #TODO: this should error if the user hasn't run calibrate (manifest empty)
+    """ Clean up failed jobs so they can be re-run. """
+
     project_path = Path(project_dir).expanduser().resolve()
+    confirm_calibrated(project_path)
     clean_up_failed(project_path)

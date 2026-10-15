@@ -6,8 +6,9 @@ def calibrate(
     project_dir: Annotated[
         str,
         typer.Argument(help="Project directory name, must have been initialized with plan"),
-    ], #TODO: do we want default "trajseeder_project"? makes quicker to run but could cause accidents
+    ],
 ):
+    """ Solvate structures according to user specifications and builds jobs. """
     
     run_calibration(
         project_dir=project_dir

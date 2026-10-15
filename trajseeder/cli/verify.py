@@ -1,29 +1,27 @@
 import typer
 from pathlib import Path
 from typing import Annotated
-
+from trajseeder.core.jobs import get_job_status, update_job_status, confirm_calibrated
+from trajseeder.core.verify import verify_completion
 
 def verify(
     project_dir: Annotated[
         str,
-        typer.Option(help="Project directory name"),
-    ] = "trajseeder_project"
+        typer.Argument(help="Project directory name"),
+    ]
 ):
-    
-    #TODO: this should error if the user hasn't run calibrate (manifest empty)
+    """ [WIP] Verify outputs are valid simulation seeds. """
+
     project_path = Path(project_dir).expanduser().resolve()
+    confirm_calibrated(project_path)
 
-    """
-    This command is intended to detect issues such as:
-    missing system.xml
-    missing state.xml
-    incomplete job directories
-    failed or unknown job states
-    """
+    jobs_path = project_path / "jobs"
+    job_list = []
 
-    # TODO: this seems largely covered by trajseeder status BUT
-    # - there are cases in which output files will be created without errors
-    #   but not actually be valid files!!!
-    # - what else (including in earlier steps) could possibly be malformed?
+    for job_path in jobs_path.iterdir():
 
-    raise NotImplementedError("Command not implemented")
+        if get_job_status(job_path) == "COMPLETE":
+            if not verify_completion(job_path):
+                update_job_status(job_path, "FAILED")
+
+                # Do something here

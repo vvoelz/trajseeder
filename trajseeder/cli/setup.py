@@ -19,6 +19,8 @@ def setup(
         typer.Option(help="Project directory name"),
     ] = "trajseeder_project",
 ):
+    """ Builds the essential file structure for project management. """
+
     create_workspace(
         structures=structures,
         config_file=config_file,

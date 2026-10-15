@@ -47,6 +47,31 @@ def resolve_job_ids(project_path: Path, job_ids: list[str]) -> list[str]:
     return list(set(resolved_jobs))
 
 
+def confirm_calibrated(project_path: Path) -> None:
+    """ Check and make sure project has been calibrated, error otherwise """
+
+    manifest_path = project_path / "manifest.csv"
+    if not manifest_path.is_file():
+        raise FileNotFoundError("manifest.csv not found, did you run setup and calibrate yet?")
+
+    with manifest_path.open(newline="") as f:
+        reader = csv.reader(f)
+        next(reader, None)  # skip header row
+        num_rows = sum(1 for row in reader if any(field.strip() for field in row))
+
+    if num_rows == 0:
+        raise ValueError("manifest.csv has no entires, did you run calibrate yet?")
+
+    jobs_path = project_path / "jobs"
+    if not jobs_path.is_dir():
+        raise FileNotFoundError("jobs/ directory not found, did you run calibrate yet?")
+
+    num_jobs = sum(1 for job in jobs_path.iterdir())
+
+    if num_jobs != num_rows:
+        raise ValueError("Number of jobs does not match number of entires in manifest.")
+
+
 def log_all_jobs_status(project_path: Path) -> None:
 
     jobs_path = project_path / "jobs"

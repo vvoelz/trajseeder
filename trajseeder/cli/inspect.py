@@ -6,12 +6,16 @@ from typing import Annotated
 def inspect(
     project_dir: Annotated[
         str,
-        typer.Option(help="Project directory name"),
-    ] = "trajseeder_project"
+        typer.Argument(help="Project directory name"),
+    ]
 ):
     
-    #TODO: this should error if the user hasn't run calibrate (manifest empty)
+    """ [Not implemented] Check for problematic input files and warn user. """
+    raise NotImplementedError("Inspect is planned for a future release. If you would like to see any features, please raise a github issue.")
+
+    #TODO: this should error if it's not a setup dir
     project_path = Path(project_dir).expanduser().resolve()
+    confirm_calibrated(project_path)
 
     """
     number of structures -> check length of conforms folder
@@ -23,4 +27,4 @@ def inspect(
         -https://github.com/openmm/pdbfixer
     """
 
-    raise NotImplementedError("Command not implemented")
+    

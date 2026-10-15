@@ -23,16 +23,15 @@ def create_workspace(structures, config_file, project_dir):
         _write_project_config(project_path)
     else:
         shutil.copy(config_path, project_path / "config.json")
-        log(f"[setup] Copied user provided project config from {config_file}")
+        log(f"Copied user provided project config from {config_file}")
 
     for structure in structures:
         shutil.copy(structure, conforms_path)
-        log(f"[setup] Copied user provided structure, {structure} to project.")
+        log(f"Copied user provided structure, {structure} to project.")
         
-    log(f"[setup] Completed file structure assembly.")
-    log(f"[setup] Modify {project_dir}/config.json as desired before running calibrate command.")
-    log(f"[setup] Modify {project_dir}/preparation_script.py as desired before running run command.")
-    
+    log(f"Completed file structure assembly.")
+    log(f"\033[4;32mModify {project_dir}/config.json as desired before running calibrate command.\033[0m")
+    log(f"\033[4;32mModify {project_dir}/preparation_script.py as desired before running run command.\033[0m")
    
 # ---------------------------------------------------------------------
 # Helper functions
@@ -68,16 +67,16 @@ def _validate_config(config_path: Path):
     #TODO: validate that the values contained within user's json are acceptable
 
     if config_path.suffix.lower() != ".json":
-        raise RuntimeError(f"[setup] Config file must be a .json file: {config_path}")
+        raise RuntimeError(f"Config file must be a .json file: {config_path}")
 
     if not config_path.is_file():
-        raise RuntimeError(f"[setup] Config file does not exist: {config_path}")
+        raise RuntimeError(f"Config file does not exist: {config_path}")
 
     try:
         with open(config_path) as f:
             data = json.load(f)
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"[setup] Config file is not valid JSON: {config_path} ({e})")
+        raise RuntimeError(f"Config file is not valid JSON: {config_path} ({e})")
 
     default_path = Path(__file__).parent.parent / "calibration.json"
     with open(default_path) as f:
@@ -85,7 +84,7 @@ def _validate_config(config_path: Path):
 
     missing_keys = default.keys() - data.keys()
     if missing_keys:
-        raise RuntimeError(f"[setup] User provided config file missing keys: {missing_keys}")
+        raise RuntimeError(f"User provided config file missing keys: {missing_keys}")
 
 
 def _create_project_paths(project_dir):
@@ -97,15 +96,15 @@ def _create_project_paths(project_dir):
         raise RuntimeError("Project directory already exists")
 
     project_path.mkdir()
-    log(f"[setup] Created project workspace: {project_path}")
+    log(f"Created project workspace: {project_path}")
     
     jobs_path = project_path / "jobs"
     jobs_path.mkdir()
-    log(f"[setup] Created jobs dir in workspace: {jobs_path}")
+    log(f"Created jobs dir in workspace: {jobs_path}")
 
     conforms_path = project_path / "conforms"
     conforms_path.mkdir()
-    log(f"[setup] Created conforms dir in workspace: {conforms_path}")
+    log(f"Created conforms dir in workspace: {conforms_path}")
 
     return (project_path, jobs_path, conforms_path)
 
@@ -152,7 +151,7 @@ def _write_project_config(project_path: Path):
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
 
-    log(f"[setup] Wrote project config: {config_path}")
+    log(f"Wrote project config: {config_path}")
 
 
 def _create_manifest(project_path: Path):
@@ -165,7 +164,7 @@ def _create_manifest(project_path: Path):
 
         writer.writerow(["job_id", "structure_file"])
 
-    log(f"[setup] Created manifest: {manifest_path}")
+    log(f"Created manifest: {manifest_path}")
 
 
 def _create_prep_script(project_path: Path):
@@ -178,7 +177,7 @@ def _create_prep_script(project_path: Path):
     source = Path(__file__).resolve().parent.parent.parent / "prepDefaultDoNotModify.py"
     shutil.copy2(source, prep_script_path)
 
-    log(f"[setup] Created preparation script: {prep_script_path}")
+    log(f"Created preparation script: {prep_script_path}")
 
 
 

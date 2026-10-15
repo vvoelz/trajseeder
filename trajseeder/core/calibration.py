@@ -29,7 +29,7 @@ def run_calibration(project_dir):
     # TODO see issues on github, many of the major long term ones such as potential for broken pdbs are there
     # the most pressing issue is that we are currently assuming a clean PDB with no solvent which is not always the case
     # adding hydrogens is also important
-    # For example, __max_extent() will return incorrect answers with pre-hydrated structures
+    # For example, _max_extent() will return incorrect answers with pre-hydrated structures
     # TODO do we want to allow the user different calibration files in the same project?
 
     project_path = Path(project_dir).expanduser().resolve()
@@ -58,15 +58,15 @@ def run_calibration(project_dir):
 
     log("Proceeding with calibration...")
 
-    userExtent, structuresCut = __analyze_extents(project_path / "conforms")
+    userExtent, structuresCut = _analyze_extents(project_path / "conforms")
 
     log("Equalizing solvation.")
     
-    modellers, cannonLen, numWaters = __equalize_solvation(structuresCut, userExtent, project_path/"config.json")
+    modellers, cannonLen, numWaters = _equalize_solvation(structuresCut, userExtent, project_path/"config.json")
 
     log(f"Saving calibrated structures as jobs and writing manifest")
     
-    __build_jobs_and_manifest(project_path, modellers, structuresCut)
+    _build_jobs_and_manifest(project_path, modellers, structuresCut)
 
     # Make a json file with the results of the calibration 
     data = {
@@ -90,7 +90,7 @@ def log(msg: str) -> None:
     print(msg, flush=True)
 
 # TODO ASSUMES THAT THERE ARE NO OTHER ATOMS, WILL BREAK WITH PRE-HYDRATED CONFORMATIONS
-def __max_extent(structure_path: str) -> float:
+def _max_extent(structure_path: str) -> float:
     """Returns the distance between the furthest two atoms on a PDB"""
     pdb = PDBFile(structure_path)
     #TODO pdb.positions.unit is usually in nm, but is it always?
@@ -102,7 +102,7 @@ def __max_extent(structure_path: str) -> float:
     return pdist(pts).max()
 
 
-def __print_histogram(data):
+def _print_histogram(data):
     """ Prints a histogram to the console to visualize data"""
 
     print("\n") # makes formatting nice
@@ -179,7 +179,7 @@ def __print_histogram(data):
     print(f"\nconformations={n}  bins={bins}  bin width={bin_width:.2f}")
 
 
-def __analyze_extents(structures_path) -> tuple[float, list[str]]:
+def _analyze_extents(structures_path) -> tuple[float, list[str]]:
     """
     Input: a path to your project's structures
     Runs an analysis to inform user's choice for cannonical box length
@@ -187,13 +187,13 @@ def __analyze_extents(structures_path) -> tuple[float, list[str]]:
     """
     structures = [str(p) for p in (structures_path).glob("*.pdb")]
 
-    extents = np.array([__max_extent(structure) for structure in structures])
+    extents = np.array([_max_extent(structure) for structure in structures])
 
     order = np.argsort(extents, kind='stable')
     sorted_extents = extents[order]
     sorted_structures = [structures[i] for i in order]
 
-    __print_histogram(extents)
+    _print_histogram(extents)
 
     for i in range(6):
         pct = np.percentile(sorted_extents, 75 + i*5, method='nearest')
@@ -216,7 +216,7 @@ def __analyze_extents(structures_path) -> tuple[float, list[str]]:
     return userExtent, sorted_structures[:cutoffIndex]
 
 
-def __equalize_solvation(structures, userExtent, config_path):
+def _equalize_solvation(structures, userExtent, config_path):
     """
     Inputs:
         structures: a list of strings representing file paths of pdbs
@@ -328,7 +328,7 @@ def __equalize_solvation(structures, userExtent, config_path):
     return modellers, cannonLen, minNumHOH
 
 
-def __build_jobs_and_manifest(project_path, modellers, structuresCut):
+def _build_jobs_and_manifest(project_path, modellers, structuresCut):
     """Save calibrated structures as jobs and write manifest and log"""
 
     manifest_path = project_path / "manifest.csv"

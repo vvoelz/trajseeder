@@ -15,7 +15,7 @@ def inspect(
 
     #TODO: this should error if it's not a setup dir
     project_path = Path(project_dir).expanduser().resolve()
-    confirm_calibrated(project_path)
+    #confirm_calibrated(project_path) # Doesn't need to be calibrated, but should work differently if it is vs isn't
 
     """
     number of structures -> check length of conforms folder

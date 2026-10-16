@@ -85,13 +85,6 @@ def run_one_job(project_path: Path, job_id: str):
         
         heartbeat.stop()
 
-    # TODO: should jobs report to stdout at all? probably useful for them to do that.
-    # Be mindful of "propogate=false" flag
-    # just doing print statements for now
-    # Add second handler for the logger? 
-    # heartbeat is also currently .info
-
-
 # ---------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------

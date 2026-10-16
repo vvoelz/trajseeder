@@ -1,4 +1,5 @@
 import typer
+from pathlib import Path
 from typing import Annotated
 from trajseeder.core.calibration import run_calibration
 
@@ -9,7 +10,9 @@ def calibrate(
     ],
 ):
     """ Solvate structures according to user specifications and builds jobs. """
+
+    project_path = Path(project_dir).expanduser().resolve()
     
     run_calibration(
-        project_dir=project_dir
+        project_path=project_path
     )

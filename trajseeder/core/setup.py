@@ -126,7 +126,7 @@ def _write_project_config(project_path: Path):
         "positiveIon":'Na+',
         "negativeIon":'Cl-',
         "neutralize": True,
-        "residueTemplates": "Not implemented yet, see calibration __equalize_solvation.", 
+        "residueTemplates": "Not implemented yet, see calibration _equalize_solvation.", 
         "ionCutoff":  0.5,
         "randomSeed": 12345,
 

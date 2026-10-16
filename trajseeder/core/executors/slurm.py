@@ -10,7 +10,6 @@ class SlurmExecutor(Executor):
 
         # grab cluster information to fill in basics
             # what degree of control should we give user?
-                # start with none, see if users want some.
         
         for job_id in job_ids:
 
@@ -22,9 +21,6 @@ class SlurmExecutor(Executor):
             
             # run each of these batch jobs (submit them to queue) (how?)
                 # needs to catch if the scheduler denies (eg too many jobs currently running)
-
-            raise NotImplementedError("Slurm isn't done yet, sorry!")
-            #run_one_job(project_path=project_path, job_id=job_id)
 
 
 

@@ -8,7 +8,6 @@ from trajseeder.core.jobs import get_job_status
 from trajseeder.core.log_manager import create_logger, LoggerWriter
 
 
-
 def verify_completion(job_path: Path):
     """ Verify that the files produced by a *completed* job can be run without issue.
         Updates the job's log and returns false if there is an issue.
@@ -65,7 +64,6 @@ def _simulation_test(topology_path: Path, system_path: Path, state_path: Path, l
             state=str(state_path)
         )
 
-        #from trajseeder.core.log_manager import create_logger, LoggerWriter
         simulation.reporters.append(StateDataReporter(
             LoggerWriter(logger), 1000, step=True, potentialEnergy=True, temperature=True
         ))

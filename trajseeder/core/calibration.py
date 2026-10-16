@@ -19,20 +19,16 @@ from openmm.app import Modeller, PDBFile
 from openmm.unit import nanometer, nanometers, molar
 
 
-def run_calibration(project_dir):
+def run_calibration(project_path):
     """
     For a project established with "trajseeder plan", establishes cannonical 
     box size based on user input. Then solvates all structures in the project
     with the name number of waters and ionic concentration based on config.json.
     Saves results of calibration to calibration.json.
     """
-    # TODO see issues on github, many of the major long term ones such as potential for broken pdbs are there
-    # the most pressing issue is that we are currently assuming a clean PDB with no solvent which is not always the case
-    # adding hydrogens is also important
+    # TODO we are currently assuming a clean, unbroken PDB with no solvent which is not always the case
     # For example, _max_extent() will return incorrect answers with pre-hydrated structures
-    # TODO do we want to allow the user different calibration files in the same project?
-
-    project_path = Path(project_dir).expanduser().resolve()
+    # Adding hydrogens is also often important.
     
     # Warn the user if there is an existing calibration file with the same name
     if (project_path / "calibration.json").exists():
@@ -62,7 +58,7 @@ def run_calibration(project_dir):
 
     log("Equalizing solvation.")
     
-    modellers, cannonLen, numWaters = _equalize_solvation(structuresCut, userExtent, project_path/"config.json")
+    modellers, cannonLen, addedHOH, addedPos, addedNeg = _equalize_solvation(structuresCut, userExtent, project_path/"config.json")
 
     log(f"Saving calibrated structures as jobs and writing manifest")
     
@@ -72,8 +68,9 @@ def run_calibration(project_dir):
     data = {
     "cannonLen": cannonLen,
     "userExtent": userExtent,
-    "numWaters": numWaters,
-    "numIons": "not implemented", #TODO implement, + do we want positive and negative count?
+    "numWaters": addedHOH,
+    "numPosIons": addedPos,
+    "numNegIons": addedNeg,
     }
     with open(project_path / "calibration.json", "w") as f:
         json.dump(data, f)
@@ -89,11 +86,12 @@ def run_calibration(project_dir):
 def log(msg: str) -> None:
     print(msg, flush=True)
 
-# TODO ASSUMES THAT THERE ARE NO OTHER ATOMS, WILL BREAK WITH PRE-HYDRATED CONFORMATIONS
+
 def _max_extent(structure_path: str) -> float:
     """Returns the distance between the furthest two atoms on a PDB"""
+    # TODO Assumes there are no other atoms, will break with pre-hydrated conformations
     pdb = PDBFile(structure_path)
-    #TODO pdb.positions.unit is usually in nm, but is it always?
+    #TODO: pdb.positions.unit is usually in nm, but is it always?
     if(pdb.positions.unit != openmm.unit.nanometer):
         log("[red]PDB is using units other than nanometers. This is going to mess things up but I haven't put a fix in yet.[/red]")
     coords = np.array(pdb.positions.value_in_unit(pdb.positions.unit)) 
@@ -102,8 +100,9 @@ def _max_extent(structure_path: str) -> float:
     return pdist(pts).max()
 
 
-def _print_histogram(data):
-    """ Prints a histogram to the console to visualize data"""
+def _print_histogram(data) -> None:
+    """ Prints a histogram to the console to visualize data 
+        Input: numpy array of floats """
 
     print("\n") # makes formatting nice
 
@@ -179,7 +178,7 @@ def _print_histogram(data):
     print(f"\nconformations={n}  bins={bins}  bin width={bin_width:.2f}")
 
 
-def _analyze_extents(structures_path) -> tuple[float, list[str]]:
+def _analyze_extents(structures_path: Path) -> tuple[float, list[str]]:
     """
     Input: a path to your project's structures
     Runs an analysis to inform user's choice for cannonical box length
@@ -216,15 +215,19 @@ def _analyze_extents(structures_path) -> tuple[float, list[str]]:
     return userExtent, sorted_structures[:cutoffIndex]
 
 
-def _equalize_solvation(structures, userExtent, config_path):
+def _equalize_solvation(structures: list[str], userExtent: float, config_path: Path):
     """
     Inputs:
         structures: a list of strings representing file paths of pdbs
-        cannonLen: a float representing the edge length of the cubic box to place each structure into in nm
-        ionicStrength: a float representing the mols of ions per liter of solvent (water)
+        userExtent: a float holding the edge length of the cubic box to place each structure into in nm
+        config_path: a Path for the location of the config file containing solvent parameters
     Returns:
-        A list of modeller objects, one model for each input structure, matching all input parameters and all
-        having the same number of water molecules
+        modellers: list[Modeller], one model for each input structure, matching all input parameters and all
+            having the same number of water molecules
+        cannonLen: float, the cubic box length, 
+        minNumHOH: int, number of waters added to each conformation
+        addedPos: int, number of positive ions added to each conformation
+        addedNeg: int, number of negative ions added to each conformation
     """
     with open(config_path) as f:
         config = json.load(f)
@@ -235,7 +238,7 @@ def _equalize_solvation(structures, userExtent, config_path):
     negativeIon = config["negativeIon"]
     ionicStrength = config["ionicStrength"]*molar
     neutralize = config["neutralize"]
-    residueTemplates = dict() #TODO: how does this work, won't these go stale when we modify things?
+    residueTemplates = dict() #TODO: how would this work, won't these go stale when we modify things?
     ionCutoff = config["ionCutoff"]*nanometer
 
     random.seed(config["randomSeed"])
@@ -249,6 +252,12 @@ def _equalize_solvation(structures, userExtent, config_path):
         pdb = PDBFile(structure)
         modeller = Modeller(pdb.topology, pdb.positions)
         modellers.append(modeller)
+    
+    # Count initial number of ions in structure
+    posName = positiveIon.rstrip('+-').upper()
+    negName = negativeIon.rstrip('+-').upper()
+    initial_pos_ions = sum(1 for r in modellers[0].topology.residues() if r.name == posName)
+    initial_neg_ions = sum(1 for r in modellers[0].topology.residues() if r.name == negName)
 
     # Creates set of the pre-existing waters in a model so they are not overwritten later
     log("Establishing pre-existing protected water molecules.")
@@ -324,8 +333,17 @@ def _equalize_solvation(structures, userExtent, config_path):
                        ionicStrength=ionicStrength, 
                        neutralize=neutralize, 
                        residueTemplates=residueTemplates)
+        
+    # Count final number of ions in structure
+    final_pos_ions = sum(1 for r in modellers[0].topology.residues() if r.name == posName)
+    final_neg_ions = sum(1 for r in modellers[0].topology.residues() if r.name == negName)
+
+    addedPos = final_pos_ions - initial_pos_ions
+    addedNeg = final_neg_ions - initial_neg_ions
+
+    addedHOH = minNumHOH - addedPos - addedNeg
     
-    return modellers, cannonLen, minNumHOH
+    return modellers, cannonLen, addedHOH, addedPos, addedNeg
 
 
 def _build_jobs_and_manifest(project_path, modellers, structuresCut):

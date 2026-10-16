@@ -160,7 +160,7 @@ trajseeder run trajseeder_project 0
 
 # Usage
 
-trajseeder is designed around a staged workflow:
+Trajseeder is designed around a staged workflow:
 
 ```text
 setup → calibrate → run → inspect/status/retry/verify
@@ -171,7 +171,7 @@ The intent is to separate **global ensemble setup** from **per-structure prepara
 ### 1. Setup the file structure
 
 First, trajseeder builds a standard file structure to keep your project organized
-and import the structures you will be working with.**It is assumed these structures are clean pdb files, all representing different conformations of the same molecule. Trajseeder does not clean or repair structures for you**
+and import the structures you will be working with. **It is assumed these structures are clean pdb files, all representing different conformations of the same molecule. Trajseeder does not clean or repair structures for you.**
 This step creates a configuration file (config.json) or allows the user
 to provide their own. The default file can be easily modified to fit the needs of your
 simulation.
@@ -253,18 +253,13 @@ structure.
 ### 3. Run preparation jobs
 
 Now that each conformation has been solvated, a standard protocol needs to be run on each of them to
-prepare the simulation seeds for use. Each job reads only its own job directory and writes only its own outputs, making the workflow safe for parallel execution. Trajseeder provides various executors to determine how this process is done. 
+prepare the simulation seeds for use. Each job reads only its own job directory and writes only its own outputs, making the workflow safe for parallel execution. Trajseeder provides various executors to determine how this process is done:
 
-## Executors
+**default-serial** - Runs jobs one after another on your machine's default hardware.
 
-# default-serial
-Runs jobs one after another on your machine's default hardware.
+**default-parallel** - [Work in progress]
 
-# default-parallel
-[Work in progress]
-
-# slurm
-[Work in progress]
+**slurm** - [Work in progress]
 
 
 ```bash

@@ -25,6 +25,14 @@ is that you are familiar with python logging.
 
 logger.info(f"Your message here")
 logger.error(f"Oh no, an error!")
+
+Additionally, functionality is provided for simulation reporters:
+
+from trajseeder.core.log_manager import LoggerWriter
+
+simulation.reporters.append(StateDataReporter(
+    LoggerWriter(logger), 1000, step=True, potentialEnergy=True, temperature=True
+))
 """
 
 def run_preparation_script(modeller: Modeller, forcefield: forcefield, logger) -> Simulation:

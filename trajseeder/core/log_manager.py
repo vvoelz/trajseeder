@@ -24,6 +24,19 @@ class JsonlFormatter(logging.Formatter):
         return json.dumps(payload)
 
 
+class LoggerWriter:
+    """ Useful for logging openmm simulation reporters. """
+    def __init__(self, logger, level=logging.INFO):
+        self.logger, self.level = logger, level
+
+    def write(self, text):
+        if text.strip():
+            self.logger.log(self.level, text.strip())
+
+    def flush(self):
+        pass
+
+
 def create_logger(job_path: Path, job_id: str) -> logging.Logger:
 
     logger = logging.getLogger(f"Job#{job_id}")

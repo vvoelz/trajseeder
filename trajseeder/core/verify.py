@@ -1,30 +1,44 @@
-from openmm.app import *
 from openmm import *
-from openmm.unit import *
+from openmm.app import *
+from openmm.unit import kelvin,picosecond,picoseconds
 from sys import stdout
 from pathlib import Path
 
 from trajseeder.core.jobs import get_job_status
-from trajseeder.core.log_manager import create_logger
+from trajseeder.core.log_manager import create_logger, LoggerWriter
+
 
 
 def verify_completion(job_path: Path):
-    """ Verify that the files produced by a *completed* job can be run without issue """
+    """ Verify that the files produced by a *completed* job can be run without issue.
+        Updates the job's log and returns false if there is an issue.
+    """
 
-    # Sanity check job is completed
+    # NOTE: There are many, many ways that a simulation seed can fail without any
+    # actual error. This function should catch most of them, but I expect to update
+    # this often to continue to catch more and more rare edge cases.
+
+    # Sanity check: job is completed
     if not get_job_status(job_path) == "COMPLETE":
         raise ValueError("Incomplete job passed to verify_complete()")
 
-    # TODO !!!!! log to the logger WHY it failed, and return false
-    logger = create_logger(job_path, job_id)
+    logger = create_logger(job_path, job_path.name[-6:])
 
-    # make sure the files are there (i cant imagine they wouldn't be, but w/e)
-        # missing system.xml
-        # missing state.xml
-        # incomplete job directories
-        # failed or unknown job states
+    # Sanity check: files are present
+    system_path = job_path / "system.xml"
+    if not system_path.is_file():
+        logger.error("Job marked as complete, but system.xml is missing.")
+        return False
+    state_path = job_path / "state.xml"
+    if not state_path.is_file():
+        logger.error("Job marked as complete, but state.xml is missing.")
+        return False
+    topology_path = job_path / "topology.pdb"
+    if not topology_path.is_file():
+        logger.error("Job marked as complete, but topology.pdb is missing.")
+        return False
 
-    # run the little test code to make sure
+    if not _simulation_test(topology_path, system_path, state_path, logger): return False
 
     return True
 
@@ -36,28 +50,30 @@ def log(msg: str) -> None:
     print(msg, flush=True)
 
 
-def _simulation_test():
+def _simulation_test(topology_path: Path, system_path: Path, state_path: Path, logger):
+    """ Ensure files can be loaded into a simulation and run. """
 
-    # 1. Load the companion topology (required to map names/chains to the system)
-    pdb = PDBFile('jobs/000000/topology.pdb')
+    try:
+        pdb = PDBFile(str(topology_path))
 
-    # 2. Define or load an integrator (required to advance the simulation)
-    integrator = LangevinMiddleIntegrator(300*kelvin, 1/picosecond, 0.002*picoseconds)
+        integrator = LangevinMiddleIntegrator(300*kelvin, 1/picosecond, 0.002*picoseconds)
 
-    # 3. Instantiate the Simulation by passing the XML paths directly
-    # This deserializes system.xml and automatically applies the coordinates/velocities from state.xml
-    simulation = Simulation(
-        topology=pdb.topology,
-        system='jobs/000000/system.xml',
-        integrator=integrator,
-        state='jobs/000000/state.xml'
-    )
+        simulation = Simulation(
+            topology=pdb.topology,
+            system=str(system_path),
+            integrator=integrator,
+            state=str(state_path)
+        )
 
-    # 4. Attach reporters and continue running the simulation
-    simulation.reporters.append(DCDReporter('output.dcd', 1000))
-    simulation.reporters.append(StateDataReporter(
-        stdout, 1000, step=True, potentialEnergy=True, temperature=True
-    ))
+        #from trajseeder.core.log_manager import create_logger, LoggerWriter
+        simulation.reporters.append(StateDataReporter(
+            LoggerWriter(logger), 1000, step=True, potentialEnergy=True, temperature=True
+        ))
 
-    print("Resuming simulation from state.xml...")
-    simulation.step(1000)
+        simulation.step(1000)
+        return True
+
+    except Exception as e:
+
+        logger.exception(f"Reload of simulation failed: {e}")
+        return False

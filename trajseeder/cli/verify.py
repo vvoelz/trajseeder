@@ -10,18 +10,16 @@ def verify(
         typer.Argument(help="Project directory name"),
     ]
 ):
-    """ [WIP] Verify outputs are valid simulation seeds. """
+    """ Verify outputs are valid simulation seeds. """
 
     project_path = Path(project_dir).expanduser().resolve()
     confirm_calibrated(project_path)
 
     jobs_path = project_path / "jobs"
-    job_list = []
 
     for job_path in jobs_path.iterdir():
 
         if get_job_status(job_path) == "COMPLETE":
             if not verify_completion(job_path):
                 update_job_status(job_path, "FAILED")
-
-                # Do something here
+                print(f"Job#{job_path.name[-6:]} has issues with outputs, see its log for details.", flush=True)

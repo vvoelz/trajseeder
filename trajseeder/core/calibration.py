@@ -42,15 +42,15 @@ def run_calibration(project_path):
 
     # Check for essential files, are we actually in a project?
     if not(project_path / "config.json").exists(): 
-        raise RuntimeError(f"config.json is missing from {project_dir}.")
+        raise RuntimeError(f"config.json is missing from {project_path}.")
     if not(project_path / "preparation_script.py").exists(): 
-        raise RuntimeError(f"preparation_script.py is missing from {project_dir}.")
+        raise RuntimeError(f"preparation_script.py is missing from {project_path}.")
     if not(project_path / "manifest.csv").exists(): 
-        raise RuntimeError(f"manifest.csv is missing from {project_dir}.")
+        raise RuntimeError(f"manifest.csv is missing from {project_path}.")
     if not(project_path / "conforms").exists(): 
-        raise RuntimeError(f"conforms/ is missing from {project_dir}.")
+        raise RuntimeError(f"conforms/ is missing from {project_path}.")
     if not(project_path / "jobs").exists(): 
-        raise RuntimeError(f"jobs/ is missing from {project_dir}.")
+        raise RuntimeError(f"jobs/ is missing from {project_path}.")
 
     log("Proceeding with calibration...")
 

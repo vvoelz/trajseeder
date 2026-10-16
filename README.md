@@ -1,10 +1,6 @@
 # trajseeder
 A Python package to systematically prepare OpenMM simulations from an ensemble of protein structures
 
-Early placeholder release to reserve the package namespace.
-
-(This readme will be perpetually outdated, and may contain my personal notes leading up to release 1.0 as implementation is ongoing. -Preston)
-
 <details> <summary><strong>Overview</strong></summary>
           
 **trajseeder** is a Python package for preparing large ensembles of protein structures for molecular dynamics simulation with OpenMM.
@@ -30,8 +26,8 @@ trajseeder addresses this by applying a single, standardized preparation protoco
 
 trajseeder separates the preparation workflow into three conceptual stages:
 
-1. **Setup** build an initial file system to contain your project.
-2. **Calibrate** solvate structures under equivalent conditions saving relevant information and populating jobs.
+1. **Setup** an initial file system to contain your project.
+2. **Calibrate** equivalent conditions and solvate structures, saving relevant information and populating jobs.
 3. **Run** each preparation job independently to produce equilibrated OpenMM simulation seeds.
 
 
@@ -60,8 +56,8 @@ The resulting outputs are intended to serve as **starting points for production 
    trajseeder setup
           │
           ▼
- modfiy calibration.json
- modify preparation_script.py
+ <modfiy calibration.json>
+ <modify preparation_script.py>
           │
           ▼
   trajseeder calibrate
@@ -78,8 +74,8 @@ Distributed production simulations
 
 ## Current Status
 
-trajseeder is under active development. The current focus is on building a robust, modular framework for large-scale OpenMM system preparation before implementing the full simulation protocol.
-
+Trajseeder is under active development. Please submit features you would like to see or bugs you have come across
+to our github issues page.
 
 </details> 
 
@@ -89,18 +85,17 @@ trajseeder is under active development. The current focus is on building a robus
 
 ### Requirements
 
-trajseeder is written for Python 3.10 or later and is built around the OpenMM molecular simulation toolkit.
+trajseeder is written for Python 3.11 or later and is built around the OpenMM molecular simulation toolkit.
 
 Current dependencies include:
 
 * OpenMM (openmm.org)
 * MDTraj (mdtraj.org)
 * NumPy
-* Typer (command-line interface)
+* SciPy
+* Typer
+* rich
 * tqdm
-* TODO: ensure all dependencies are listed and reflected in toml file
-
-Additional scientific Python packages may be added as development continues.
 
 ### Install from PyPI
 
@@ -141,17 +136,10 @@ Commands:
     calibrate
     run
     status
-    inspect
     retry-failed
     verify
     clean
 ```
-
-### Development status
-
-trajseeder is currently under active development. The overall project architecture is subject to change leading up to release 1.0 while the OpenMM preparation protocol is still being implemented.
-
-Interfaces may evolve as the project matures.
 
 </details> 
 
@@ -165,7 +153,7 @@ trajseeder setup structures/*.pdb
 
 trajseeder calibrate trajseeder_project
 
-trajseeder run trajseeder_project --all
+trajseeder run trajseeder_project 0
 ```
 </details>
 
@@ -184,9 +172,9 @@ The intent is to separate **global ensemble setup** from **per-structure prepara
 ### 1. Setup the file structure
 
 First, trajseeder builds a standard file structure to keep your project organized
-and import the structures you will be working with.
+and import the structures you will be working with.**It is assumed these structures are clean pdb files, all representing different conformations of the same molecule. Trajseeder does not clean or repair structures for you**
 This step creates a configuration file (config.json) or allows the user
-to provide their own. The default file can be modified to fit the needs of your
+to provide their own. The default file can be easily modified to fit the needs of your
 simulation.
 This step also creates preparation_script.py, a script outlining a standard
 openMM protocol to be applied to all solvated conforms in a later step. 
@@ -208,8 +196,7 @@ trajseeder_project/
 │    ├── structure_a.pdb
 │    ├── structure_b.pdb
 │    └── structure_c.pdb
-├── jobs/
-└── logs/
+└─── jobs/
 ```
 `config.json` stores project-level simulation protocol settings such as force field files, timestep, constraints, nonbonded method, temperature, and pressure.
 
@@ -230,10 +217,10 @@ trajseeder calibrate trajseeder_project
 This step is intended to determine parameters such as:
 
 * canonical cubic box length
-* target number of waters
-* target number of ions
-* solvent padding
-* calibration metadata
+* number of waters
+* number of positive ions
+* number of negative ions
+* other calibration metadata
 
 The project is updated:
 
@@ -264,20 +251,26 @@ trajseeder_project/
 Each project is intended to have one unique config.json, calibration.json, manifest.csv, preparation_script.py and, at most one job per
 structure.
 
-
 ### 3. Run preparation jobs
 
 Now that each conformation has been solvated, a standard protocol needs to be run on each of them to
-prepare the for simulation on HPC or distributed computing. Trajseeder provides various executors to 
-determine how this process is done. Currently only default-serial is available, which runs jobs one 
-after another. 
+prepare the simulation seeds for use. Each job reads only its own job directory and writes only its own outputs, making the workflow safe for parallel execution. Trajseeder provides various executors to determine how this process is done. 
 
-TODO: make help explain options and write a quick summary of them here.
+## Executors
+
+# default-serial
+Runs jobs one after another on your machine's default hardware.
+
+# default-parallel
+[Work in progress]
+
+# slurm
+[Work in progress]
 
 
 ```bash
 trajseeder run trajseeder_project --all --executor default-serial
-trajseeder run trajseeder_project 1 2 3 --executor default-serial
+trajseeder run trajseeder_project 0 1 2 3 --executor default-serial
 ```
 
 A job will eventually perform the full preparation protocol, by default:
@@ -289,6 +282,9 @@ minimize energy
 equilibrate under NVT and NPT conditions
 serialize OpenMM system and state
 ```
+This preparation protocol can be found in the folder you created with trajseeder setup.
+It contains instructions for how to modify it to your liking, and includes logging functionality
+so you can keep track of whatever you need.
 
 Expected final outputs for a completed job are:
 
@@ -304,102 +300,79 @@ jobs/000123/
 
 The serialized `system.xml` and `state.xml` files are intended to be used later for production simulations on distributed computing platforms.
 
-### 4. Run jobs on a cluster
 
-trajseeder is designed to work naturally with scheduler array jobs.
-
-For example, with SLURM:
-
-```bash
-#SBATCH --array=0-9999
-
-trajseeder run $SLURM_ARRAY_TASK_ID --project trajseeder_project
-```
-
-Each job reads only its own job directory and writes only its own outputs, making the workflow safe for parallel execution.
-
-### 5. Check project status
+### 4. Check project status
 
 To summarize job progress:
 
 ```bash
-trajseeder status --project trajseeder_project
+trajseeder status trajseeder_project
 ```
 
 Example output:
 
 ```text
-pending: 4213
-running: 84
-complete: 5680
-failed: 23
+PENDING: 4213
+RUNNING: 81
+COMPLETE: 2900
+FAILED: 16
 ```
 
 Job status is tracked using simple `status.txt` files inside each job directory.
+Pending jobs have not been touched by run yet, either because of a delay in execution such as the serial case,
+or because they have not been called with trajseeder run at all.
 
-### 6. Inspect the ensemble
+### 5. Clean partial outputs
 
-The `inspect` command is intended to provide quick diagnostics about the input structures.
-
-```bash
-trajseeder inspect structures/*.pdb
-```
-
-This may report information such as:
-
-* number of structures
-* structural extents
-* approximate box-size requirements
-* possible problematic input files
-
-### 7. Retry failed jobs
-
-Failed jobs can be reset for another attempt.
+For failed job cleanup:
 
 ```bash
-trajseeder retry-failed --project trajseeder_project
+trajseeder clean trajseeder_project
 ```
+This command is intended to find jobs marked as `failed` and reset them to `pending` while preserving inputs, configs, and status metadata.
 
-This command is intended to find jobs marked as `failed` and reset them to `pending`, or optionally emit a list of failed job IDs for resubmission.
+### 6. Retry failed jobs
 
-### 8. Verify completed outputs
+Failed jobs can be run immediately for another attempt.
+
+```bash
+trajseeder retry-failed trajseeder_project --executor default-serial
+```
+This command is intended to find jobs marked as `failed`, clean them up, and re-run them immediately.
+
+### 7. Verify completed outputs
 
 After a large preparation campaign, the `verify` command checks that outputs are present and readable.
 
 ```bash
-trajseeder verify --project trajseeder_project
+trajseeder verify trajseeder_project
 ```
 
 This command is intended to detect issues such as:
 
 * missing `system.xml`
 * missing `state.xml`
-* incomplete job directories
+* incomplete job directory
 * failed or unknown job states
 
-### 9. Clean partial outputs
-
-For development or failed campaign cleanup:
-
-```bash
-trajseeder clean --failed --project trajseeder_project
-```
-
-This command is intended to remove partial outputs from failed jobs while preserving inputs, configs, and status metadata.
+These checks are being acitvely developed and improved. If you notice trajseeder is producing problematic outputs,
+please report them to us so we can make our verification more robust.
 
 ## Typical Workflow
 
 ```bash
 
-trajseeder setup structures/*.pdb
+trajseeder setup structures/*.pdb --project-dir trajseeder_project
+
+<Modify config.json and preparation_script.py>
 
 trajseeder calibrate trajseeder_project
 
-trajseeder status --project trajseeder_project
+trajseeder run trajseeder_project --all --executor default-serial
 
-trajseeder run 0 --project trajseeder_project
+trajseeder status trajseeder_project
 
-trajseeder verify --project trajseeder_project
+trajseeder verify trajseeder_project
 ```
 
 For large ensembles, the `run` step is usually executed through a scheduler array rather than directly in a shell loop.

@@ -12,7 +12,7 @@ def retry_failed(
     ],
     executor: Annotated[
         str,
-        typer.Option(help="default-serial | default-parallel | (others, eventually...)"),
+        typer.Option(help="default-serial | default-parallel | slurm | (others, eventually...)"),
     ] = "default-serial",
 ):
     """ Re-run all failed jobs using user modified script and specified executor. """

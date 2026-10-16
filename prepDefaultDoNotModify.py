@@ -59,7 +59,7 @@ def run_preparation_script(modeller: Modeller, forcefield: forcefield, logger) -
 	logger.info(f"User script: Running NVT")
 	simulation.step(10000)
 
-	# NPT
+	# NPT (Note: Will cause slight divergence in each jobs box size)
 	logger.info(f"User script: Running NPT")
 	system.addForce(MonteCarloBarostat(1*bar, 300*kelvin))
 	simulation.context.reinitialize(preserveState=True)

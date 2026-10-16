@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trajseeder"
-version = "0.9.0"
+version = "1.0.0"
 description = "Seed molecular dynamics trajectories from structural ensembles"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -1,35 +1,18 @@
 import typer
-
-from trajseeder.calibration import run_calibration
-
+from pathlib import Path
+from typing import Annotated
+from trajseeder.core.calibration import run_calibration
 
 def calibrate(
-    structures: list[str],
-    n_calibration: int = typer.Option(
-        10,
-        help="Number of structures to use for calibration",
-    ),
-    padding_nm: float = typer.Option(
-        1.2,
-        help="Solvent padding in nanometers",
-    ),
-    output: str = typer.Option(
-        "calibration.json",
-        help="Output calibration file",
-    ),
-    random_seed: int = typer.Option(
-        12345,
-        help="Random seed for selecting calibration structures",
-    ),
+    project_dir: Annotated[
+        str,
+        typer.Argument(help="Project directory name, must have been initialized with plan"),
+    ],
 ):
-    """
-    Determine solvent calibration parameters from an ensemble of structures.
-    """
+    """ Solvate structures according to user specifications and builds jobs. """
 
+    project_path = Path(project_dir).expanduser().resolve()
+    
     run_calibration(
-        structures=structures,
-        n_calibration=n_calibration,
-        padding_nm=padding_nm,
-        output=output,
-        random_seed=random_seed,
+        project_path=project_path
     )

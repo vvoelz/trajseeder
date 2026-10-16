@@ -1,13 +1,16 @@
 import typer
-from trajseeder.workspace import ProjectWorkspace
-
+from pathlib import Path
+from typing import Annotated
+from trajseeder.core.jobs import log_all_jobs_status, confirm_calibrated
 
 def status(
-    project: str = typer.Option(".", help="Project directory")
+    project_dir: Annotated[
+        str,
+        typer.Argument(help="Project directory name"),
+    ]
 ):
-    workspace = ProjectWorkspace(project)
+    """ Report the current status of all jobs in a project. """
 
-    summary = workspace.status_summary()
-
-    for key, value in summary.items():
-        print(f"{key}: {value}")
+    project_path = Path(project_dir).expanduser().resolve()
+    confirm_calibrated(project_path)
+    log_all_jobs_status(project_path)

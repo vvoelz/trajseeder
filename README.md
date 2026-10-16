@@ -110,7 +110,7 @@ pip install trajseeder
 To install the latest development version:
 
 ```bash
-git clone https://github.com/<your-github-username>/trajseeder.git
+git clone https://github.com/vvoelz/trajseeder.git
 cd trajseeder
 
 pip install -e .

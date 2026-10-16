@@ -148,7 +148,6 @@ Commands:
 
 # Quick start
 ```
-
 trajseeder setup structures/*.pdb
 
 trajseeder calibrate trajseeder_project

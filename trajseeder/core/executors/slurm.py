@@ -15,7 +15,7 @@ class SlurmExecutor(Executor):
 
         script_path = project_path / "traj_slurm_array.sh"
         if not script_path.exists():
-            make_bash_script()
+            make_bash_script(project_path)
             log("Bash script written!")
 
         log("Feel free to edit the generated bash script, especially if the default is breaking on your cluster.")

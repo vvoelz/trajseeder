@@ -181,7 +181,7 @@ def make_bash_script(project_path: Path,
     run_one_job(Path(sys.argv[1]), f"{{int(sys.argv[2]):06d}}")
     ' {shlex.quote(str(project_path))} "$SLURM_ARRAY_TASK_ID"
     """
-    script_path = project_path / "trajseeder_array.sh"
+    script_path = project_path / "traj_slurm_array.sh"
     script_path.write_text(script)
     return script_path
 

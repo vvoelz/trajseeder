@@ -30,7 +30,7 @@ def run_calibration(project_path):
     # For example, _max_extent() will return incorrect answers with pre-hydrated structures
     # Adding hydrogens is also often important.
     
-    # Warn the user if there is an existing calibration file with the same name
+    # Warn the user if there is an existing calibration file
     if (project_path / "calibration.json").exists():
         log("[red]This will overwrite a previous calibration.json. [/red]")
         log("[red]If you have existing jobs, or have calibrated previously this will break your entire project![/red]")

@@ -7,6 +7,7 @@ import subprocess
 import shlex
 import getpass
 import sys
+import textwrap
 
 class SlurmExecutor(Executor):
     def submit(self, project_path: Path, job_ids: list[str]):
@@ -166,21 +167,32 @@ def make_bash_script(project_path: Path,
         directives.append(f"--gres=gpu:{gpus_per_job}")
 
     header = "\n".join(f"#SBATCH {d}" for d in directives)
+    
+    template = textwrap.dedent("""\
+        #!/bin/bash
+        __HEADER__
 
-    script = f"""#!/bin/bash
-    {header}
+        set -euo pipefail
+        export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK"
+        export OPENMM_CPU_THREADS="$SLURM_CPUS_PER_TASK"
 
-    set -euo pipefail
-    export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK"
-    export OPENMM_CPU_THREADS="$SLURM_CPUS_PER_TASK"
+        __PYTHON__ -c '
+        import sys
+        from pathlib import Path
+        from trajseeder.core.run import run_one_job
+        run_one_job(Path(sys.argv[1]), f"{int(sys.argv[2]):06d}")
+        ' __PROJECT__ "$SLURM_ARRAY_TASK_ID"
+        """)
 
-    {shlex.quote(sys.executable)} -c '
-    import sys
-    from pathlib import Path
-    from trajseeder.core.run import run_one_job
-    run_one_job(Path(sys.argv[1]), f"{{int(sys.argv[2]):06d}}")
-    ' {shlex.quote(str(project_path))} "$SLURM_ARRAY_TASK_ID"
-    """
+    script = (
+        template
+        .replace("__HEADER__", header)
+        .replace("__PYTHON__", shlex.quote(sys.executable))
+        .replace("__PROJECT__", shlex.quote(str(project_path)))
+    )
+
+
+
     script_path = project_path / "traj_slurm_array.sh"
     script_path.write_text(script)
     return script_path

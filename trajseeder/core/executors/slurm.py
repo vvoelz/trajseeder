@@ -1,13 +1,12 @@
-from trajseeder.core.run import run_one_job
-from .baseClass import Executor
-from pathlib import Path
-
-import shutil
-import subprocess
-import shlex
-import getpass
 import sys
+import shlex
+import shutil
+import getpass
 import textwrap
+import subprocess
+
+from pathlib import Path
+from .baseClass import Executor
 
 class SlurmExecutor(Executor):
     def submit(self, project_path: Path, job_ids: list[str]):
@@ -16,15 +15,31 @@ class SlurmExecutor(Executor):
 
         script_path = project_path / "traj_slurm_array.sh"
         if not script_path.exists():
-            make_bash_script(project_path)
+            log("Available partitions are:")
+            log(_query(["sinfo", "-h", "-o", "%P"]))
+            log("Please input partition(s) to use or hit enter for default.")
+            log("Format: partition1,partition2")
+            partition = input()
+            if partition == "": partition = None
+            make_bash_script(project_path, partition)
             log("Bash script written!")
 
+            log("Would you like to halt running and edit default bash script? [Y/N]")
+            user_input = input().strip().lower()
+            if user_input != 'y':
+                log("Run aborted by user!")
+                return 
+            # TODO: Perhaps a way to create script without pretending a job is going to be run?
+            
         log("Feel free to edit the generated bash script, especially if the default is breaking on your cluster.")
         log("Please report default script breakage on our github.")
         log("Subsequent runs will not produce a new bash script unless the prior script is deleted.")
         
         submit_slurm(script_path, job_ids)
 
+        log("Sent the following jobs to SLURM queue:")
+        for id in job_ids:
+            log(f"Job#{id}")
 
 
 # ---------------------------------------------------------------------
@@ -89,82 +104,84 @@ def _get_gpu_partitions() -> set[str]:
 
 
 def _partition_has_gpus(partition: str) -> bool:
+    """ Returns true if ALL the partitions have gpu """
     
     gpu_parts = _get_gpu_partitions()
-    return any(p in gpu_parts for p in partition.split(","))
+    requested = {p.strip() for p in partition.split(",") if p.strip()}
+    return bool(requested) and requested <= gpu_parts
 
 
-def _resolve_partition(requested: str | None) -> str | None:
-    """ Return validated partition(s) either the requested one(s), or the default. """
+def _pick_cpus_per_task(partitions: str) -> int:
+    """ Pick from 1,2,4,8, or 32 cpus per task based on partitions """
 
+    CPU_CHOICES = (1, 2, 4, 8, 16, 32)
+
+    parts = ",".join(p.strip() for p in partitions.split(",") if p.strip())
+    if not parts:
+        raise ValueError("No partitions given")
+
+    out = _query(["sinfo", "-N", "-h", "-p", parts, "-o", "%c"])
+    if out is None:
+        raise RuntimeError(f"Could not query sinfo for partitions: {parts}")
+
+    cpus = [int(line.strip().rstrip("+")) for line in out.splitlines() if line.strip()]
+    if not cpus:
+        raise RuntimeError(f"No nodes found for partitions: {parts}")
+
+    return max((c for c in CPU_CHOICES if c <= max(cpus)), default=1)
+
+
+def _resolve_partition(input: str | None) -> str | None:
+    """Return validated partition(s): the requested one(s), or the cluster default.
+    Format for multiple partitions is partition1,partition2,partition3
+
+    (Removes whitespace & treats empty input as None)
+    """
     partitions = _query(["sinfo", "-h", "-o", "%P"])
     if partitions is None:
         raise RuntimeError("No partitions found on cluster.")
-    
-    lines = partitions.splitlines()
+
+    lines = [l.strip() for l in partitions.splitlines() if l.strip()]
     valid = {p.rstrip("*") for p in lines}
     default = next((p.rstrip("*") for p in lines if p.endswith("*")), None)
-    
-    if requested is not None:
-        bad = [p for p in requested.split(",") if p not in valid]
+
+    names = [p.strip() for p in (input or "").split(",") if p.strip()]
+
+    if names:
+        bad = [p for p in names if p not in valid]
         if bad:
-            raise ValueError(f"Unknown partition(s) {bad}. Available: {valid}")
-        return requested
+            raise ValueError(f"Unknown partition(s) {bad}. Available: {sorted(valid)}")
+        return ",".join(names)
+
     if default is not None:
         return default
-    
+
     raise RuntimeError("No partition requested and cluster does not have default partition.")
 
 
-def make_bash_script(project_path: Path,
-                     partition: str | None = None,
-                     use_gpu: bool | None = None,
-                     gpus_per_job: int | None = 1,
-                     cpus_per_task: int = 32,
-                     mem: str | None = None) -> Path:
-    
-    # TODO: 
-    # How many gpus do we actually want to use?
-    # Is there a good way to automatically set CPU usage?
-    
-    """ Writes the SLURM array script
-
-    --array is not in the script; pass it to sbatch at submit time.
-    Each array task calls run_one_job(traj_project, job_id).
-
-    partition: see _resolve_partition. None = cluster default.
-    use_gpu: request GPUs only if the partition has them;
-    gpus_per_job: GPUs per task when requested; valid range 1 to the GPUs
-        per node (OpenMM uses one GPU per simulation, so 1 is typical).
-    cpus_per_task: cores per job; 1 to the cores per node.
-    mem: e.g. '4G'. None = cluster default (4092 MB per CPU on yours).
-        No --time is set, so the partition default applies.
+def make_bash_script(project_path: Path, 
+                     partition: str | None = None) -> Path:   
+    """ Writes the SLURM array script based on sensible defaults
+        gleaned from the parition's specifications.
     """
+
     log_dir = project_path / "slurm_logs"
     log_dir.mkdir(exist_ok=True)
 
-    partition = _resolve_partition(partition) # TODO: partition can be "thing1,thing2"
-    has_gpu = _partition_has_gpus(partition)  # if even one of those has GPU this is true which will break later
-    if use_gpu and not has_gpu:
-        raise RuntimeError(
-            f"GPU requested but partition {partition!r} has none. "
-            f"Partitions with GPUs: {sorted(_get_gpu_partitions()) or 'none'}")
-    want_gpu = has_gpu if use_gpu is None else use_gpu
+    partition = _resolve_partition(partition)
+    has_gpu = _partition_has_gpus(partition)
 
     directives = [
         "--job-name=trajseeder",
         "--ntasks=1",
-        f"--cpus-per-task={cpus_per_task}",
+        f"--cpus-per-task={_pick_cpus_per_task(partition)}",
         f"--output={log_dir}/%x_%A_%a.out",
+        f"--partition={partition}"
     ]
-    if partition:
-        directives.append(f"--partition={partition}")
     if (account := _get_account()):
         directives.append(f"--account={account}")
-    if mem:
-        directives.append(f"--mem={mem}")
-    if want_gpu:
-        directives.append(f"--gres=gpu:{gpus_per_job}")
+    if has_gpu:
+        directives.append(f"--gres=gpu:1")
 
     header = "\n".join(f"#SBATCH {d}" for d in directives)
     
@@ -190,8 +207,6 @@ def make_bash_script(project_path: Path,
         .replace("__PYTHON__", shlex.quote(sys.executable))
         .replace("__PROJECT__", shlex.quote(str(project_path)))
     )
-
-
 
     script_path = project_path / "traj_slurm_array.sh"
     script_path.write_text(script)

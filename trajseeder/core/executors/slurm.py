@@ -26,7 +26,7 @@ class SlurmExecutor(Executor):
 
             log("Would you like to halt running and edit default bash script? [Y/N]")
             user_input = input().strip().lower()
-            if user_input != 'y':
+            if user_input == 'y':
                 log("Run aborted by user!")
                 return 
             # TODO: Perhaps a way to create script without pretending a job is going to be run?

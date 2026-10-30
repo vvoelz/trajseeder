@@ -177,7 +177,7 @@ This step creates a configuration file (config.json) or allows the user
 to provide their own. The default file can be easily modified to fit the needs of your
 simulation.
 This step also creates preparation_script.py, a script outlining a standard
-openMM protocol to be applied to all solvated conforms in a later step. 
+openMM protocol to be applied to all of your solvated conformations in a later step. 
 This file can be modified according to the user's wishes.
 
 ```bash

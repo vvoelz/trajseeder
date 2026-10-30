@@ -96,7 +96,6 @@ Current dependencies include:
 * NumPy
 * SciPy
 * Typer
-* rich
 * tqdm
 
 ### Install from PyPI

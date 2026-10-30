@@ -5,7 +5,6 @@ import random
 import statistics
 
 from tqdm import tqdm
-from rich import print
 from pathlib import Path
 
 import numpy as np
@@ -32,9 +31,9 @@ def run_calibration(project_path):
     
     # Warn the user if there is an existing calibration file
     if (project_path / "calibration.json").exists():
-        log("[red]This will overwrite a previous calibration.json. [/red]")
-        log("[red]If you have existing jobs, or have calibrated previously this will break your entire project![/red]")
-        log("[red]Would you like to continue? [Y/N] [/red]")
+        log(f"\033[31mThis will overwrite a previous calibration.json.")
+        log(f"If you have existing jobs, or have calibrated previously this will break your entire project!")
+        log(f"Would you like to continue? [Y/N]\033[0m")
         user_input = input().strip().lower()
         if user_input != 'y':
             log("Calibration aborted by user.")

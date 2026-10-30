@@ -265,6 +265,7 @@ prepare the simulation seeds for use. Each job reads only its own job directory 
 ```bash
 trajseeder run trajseeder_project --all --executor default-serial
 trajseeder run trajseeder_project 0 1 2 3 --executor default-serial
+trajseeder run trajseeder_project --all --executor slurm
 ```
 
 A job will eventually perform the full preparation protocol, by default:

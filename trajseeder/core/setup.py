@@ -113,8 +113,7 @@ def _write_project_config(project_path: Path):
     """Write the project-level config.json file."""
 
     config = {
-        "config_version": 1,
-
+        
         "forcefield_files": [
             "amber14-all.xml",
             "amber14/tip3pfb.xml"
@@ -126,24 +125,9 @@ def _write_project_config(project_path: Path):
         "positiveIon":'Na+',
         "negativeIon":'Cl-',
         "neutralize": True,
-        "residueTemplates": "Not implemented yet, see calibration _equalize_solvation.", 
+        #"residueTemplates": "Not implemented yet, see calibration _equalize_solvation.", 
         "ionCutoff":  0.5,
         "randomSeed": 12345,
-
-        "nonbonded_method": "PME",
-        "nonbonded_cutoff_nm": 1.0,
-
-        "constraints": "HBonds",
-        "rigid_water": True,
-
-        "temperature_kelvin": 300.0,
-        "pressure_bar": 1.0,
-
-        "timestep_fs": 2.0,
-
-        "integrator_friction_per_ps": 1.0,
-
-        "npt_equilibration_steps": 500000
     }
 
     config_path = project_path / "config.json"

@@ -44,7 +44,7 @@ def resolve_job_ids(project_path: Path, job_ids: list[str]) -> list[str]:
             "Check manifest.csv for valid job_ids. Leading 0's are appended for you."
         )
 
-    return list(set(resolved_jobs))
+    return list(dict.fromkeys(resolved_jobs))
 
 
 def confirm_calibrated(project_path: Path) -> None:

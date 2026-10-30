@@ -24,6 +24,8 @@ trajseeder addresses this by applying a single, standardized preparation protoco
 
 ## Design Philosophy
 
+trajseeder is designed to work "out of the box" while providing the user with the ability to edit essentially any part of the preparation protocol.
+
 trajseeder separates the preparation workflow into three conceptual stages:
 
 1. **Setup** an initial file system to contain your project.
@@ -259,7 +261,7 @@ prepare the simulation seeds for use. Each job reads only its own job directory 
 
 **default-parallel** - [Work in progress]
 
-**slurm** - [Work in progress]
+**slurm** - Designed to run jobs on a slurm cluster. This executor will generate a bash script in your project the first time you run it or re-generate a fresh one if you have deleted the script. This script generates based on the hardware on your cluster, and should work well by default. You are given the option to cancel the run and edit the bash script or continue with the default. Subsequent runs will use the generated bash script (with whatever edits you have made) to queue jobs on the cluster.
 
 
 ```bash

@@ -1,6 +1,9 @@
 import csv
 from pathlib import Path
-from trajseeder.core.log_manager import time_since_last_heartbeat, create_logger
+from trajseeder.core.log_manager import time_since_last_heartbeat, create_logger, last_non_heartbeat
+
+def log(msg: str) -> None:
+    print(msg, flush=True)
 
 
 def get_all_job_ids(project_path: Path) -> list[str]:
@@ -91,6 +94,8 @@ def log_all_jobs_status(project_path: Path) -> None:
             if time_since_last_heartbeat(job_path) > 150:
                 update_job_status(job_path, "FAILED")
                 failed+=1
+                logger = create_logger(job_path, job_path.name[-6:])
+                logger.info(f"Previous job run detected as failure (silent crash / abort).")
             else:
                 running+=1
         elif status == "COMPLETE":
@@ -99,12 +104,40 @@ def log_all_jobs_status(project_path: Path) -> None:
             failed+=1
         else:
             # If nothing matches, something broke
+            update_job_status(job_path, "FAILED")
             failed+=1
+            logger = create_logger(job_path, job_path.name[-6:])
+            logger.info(f"Previous job run detected as failure (silent crash / abort).")
 
-    print(f"PENDING: {pending}")
-    print(f"RUNNING: {running}")
-    print(f"COMPLETE: {complete}")
-    print(f"FAILED: {failed}")
+    log(f"PENDING: {pending}")
+    log(f"RUNNING: {running}")
+    log(f"COMPLETE: {complete}")
+    log(f"FAILED: {failed}")
+
+
+def log_all_jobs_verbose(project_path: Path) -> None:
+    
+    jobs_path = project_path / "jobs"
+
+    for job_path in jobs_path.iterdir():
+
+        status = get_job_status(job_path)
+        
+        if (status == "RUNNING" and
+           time_since_last_heartbeat(job_path) > 150) or\
+           (status != "PENDING" and status != "FAILED" and status != "COMPLETE"):
+                
+            update_job_status(job_path, "FAILED")
+            logger = create_logger(job_path, job_path.name[-6:])
+            logger.info(f"Previous job run detected as failure (silent crash / abort).")
+
+        log(f"Job#{job_path.name[-6:]}: {status}")
+        log_dict = last_non_heartbeat(job_path)
+        if log_dict is not None:
+            print(f"\t{log_dict['timestamp']}")
+            log(f"\t{log_dict['message']}") 
+        else:
+            log(f"\t<No job.log found or job.log is blank.>")
 
 
 def get_job_status(job_path: Path) -> str:

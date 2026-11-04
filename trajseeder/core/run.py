@@ -27,9 +27,11 @@ def run_one_job(project_path: Path, job_id: str):
             return     
         elif status == "RUNNING":
             if time_since_last_heartbeat(job_path) > 150:
-                logger.info(f"Previous job run detected as failure (silent crash). Continuing with re-run.")
+                logger.info(f"Previous job run detected as failure (silent crash / abort). Continuing with re-run.")
             else:
-                logger.info(f"User attempted to run job that is already running.")
+                # logger.info(f"User attempted to run job that is already running.")
+                # NOTE: logger is multithread safe but not across multiple python instances
+                # like with slurm. This could cause issues so I am leaving it commented out.
                 return
         
         # Start run logging

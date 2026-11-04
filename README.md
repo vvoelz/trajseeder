@@ -32,12 +32,13 @@ trajseeder separates the preparation workflow into three conceptual stages:
 2. **Calibrate** equivalent conditions and solvate structures, saving relevant information and populating jobs.
 3. **Run** each preparation job independently to produce equilibrated OpenMM simulation seeds.
 
-
 Each calibration job:
 
 * constructs the molecular system
 * establishes a cannonical box length
 * adds the same number of solvent and ions to each box
+
+The structures that you provide to trajseeder are expected to be pre-cleaned pdb files all representing different conformations of the same protein. Trajseeder does not check this for you and as a user you are encouraged to do your due dilligence!
 
 The resulting outputs are intended to serve as **starting points for production simulations**, which may be executed later on HPC clusters or distributed computing platforms.
 

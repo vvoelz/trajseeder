@@ -111,3 +111,24 @@ def time_since_last_heartbeat(job_path: Path) -> float:
     now = datetime.now(timezone.utc)
 
     return (now - last_ts).total_seconds()
+
+
+def last_non_heartbeat(job_path: Path):
+    """Return the most recent record whose message isn't 'heartbeat', or None."""
+    log_path = job_path / "job.log"
+    last = None
+    try:
+        f = open(log_path, encoding="utf-8", errors="replace")
+    except FileNotFoundError:
+        return None
+    with f:
+        for line in f:
+            try:
+                record = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(record, dict):
+                continue
+            if record.get("message") != "heartbeat":
+                last = record
+    return last

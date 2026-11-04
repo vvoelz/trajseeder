@@ -304,15 +304,28 @@ To summarize job progress:
 
 ```bash
 trajseeder status trajseeder_project
+trajseeder status trajseeder_project --verbose
 ```
 
-Example output:
+Example outputs:
 
 ```text
 PENDING: 4213
 RUNNING: 81
 COMPLETE: 2900
 FAILED: 16
+```
+
+With verbose flag you see the status of every job individually:
+```text
+Job#000000: COMPLETE
+        2026-10-30T15:43:01.638576+00:00
+        Job completed!
+Job#000001: FAILED
+        2026-10-30T21:15:08.346920+00:00
+        Previous job run detected as failure (silent crash / abort).
+Job#000002: PENDING
+        <No job.log found or job.log is blank.>
 ```
 
 Job status is tracked using simple `status.txt` files inside each job directory.

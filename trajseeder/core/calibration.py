@@ -222,14 +222,14 @@ def _analyze_extents(structures_path: Path) -> tuple[float, list[str]]:
     return userExtent, sorted_structures[:cutoffIndex]
 
 
-def _solvate_one(m, model, cannonLen):
+def _solvate_one(m, forcefield, model, cannonLen):
     m.addSolvent(forcefield, 
-                    model=model, 
-                    boxSize=Vec3(cannonLen, cannonLen, cannonLen) * nanometers,
-                    neutralize=False,
-                    positiveIon='Na+',
-                    negativeIon='Cl-',
-                    ionicStrength=0*molar)
+                 model=model, 
+                 boxSize=Vec3(cannonLen, cannonLen, cannonLen) * nanometers,
+                 neutralize=False,
+                 positiveIon='Na+',
+                 negativeIon='Cl-',
+                 ionicStrength=0*molar)
     return m
 
 
@@ -320,7 +320,7 @@ def _equalize_solvation(structures: list[str], userExtent: float, config_path: P
     
     from functools import partial
 
-    solvate = partial(_solvate_one, model=model, cannonLen=cannonLen)
+    solvate = partial(_solvate_one, forcefield=forcefield, model=model, cannonLen=cannonLen)
 
     with Pool(4) as pool:
         modellers = list(tqdm(pool.imap(solvate, modellers), total=len(modellers)))

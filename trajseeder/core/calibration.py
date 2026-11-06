@@ -18,6 +18,13 @@ from openmm.app import Modeller, PDBFile
 from openmm.unit import nanometer, nanometers, molar
 
 
+from multiprocessing import Pool
+import os
+import time
+import threading
+import psutil
+
+
 def run_calibration(project_path):
     """
     For a project established with "trajseeder plan", establishes cannonical 
@@ -265,9 +272,35 @@ def _equalize_solvation(structures: list[str], userExtent: float, config_path: P
     
     protected_HOH_sets = [HOH_ids(m.topology) for m in tqdm(modellers)]
 
+    # START OF CONSTRUCTION ZONE-----------------------------------------------------------------------------------------------------------
+    
+    """
+    TODO: 
+    See physcial notes on establishing memory and cpu core caps, the basic is here
+
+    The plan is to 
+    -check the maximum memory usage of solvating a single modeller
+    -check static memory usage of holding onto the modeller
+    -allow user to provide memory and cpu core caps (grab defaults as total-X if they dont)
+
+    total mem usage ~= (total#modellers*mem size of modeller) + (total#workers)(peak mem usage solvation)
+
+    (plus safety margins)
+
+
+    then handle the cases
+    1. not enough mem to hold them all -> save modellers not in use
+    2. sufficient memory -> if there is enough mem and cpu make extra workers, otherwise serialize
+
+    (need to figure out if it is worth saving the modellers to free up extra worker room.)
+
+
+    make sure tqdm still works with your ultimate implementation
+    """    
+
     # Initial solvation of each conformation
     log("Performing initial solvation of conformations.")
-    for m in tqdm(modellers):
+    def solvate_one(m):
         m.addSolvent(forcefield, 
                      model=model, 
                      boxSize=Vec3(cannonLen, cannonLen, cannonLen) * nanometers,
@@ -275,6 +308,14 @@ def _equalize_solvation(structures: list[str], userExtent: float, config_path: P
                      positiveIon='Na+',
                      negativeIon='Cl-',
                      ionicStrength=0*molar)
+        return m
+    
+    with Pool(4) as pool:
+        modellers = list(tqdm(pool.imap(solvate_one, modellers), total=len(modellers)))
+
+
+
+    # END OF CONSTRUCTION ZONE-----------------------------------------------------------------------------------------------------------
     
     # TODO: Sanity check for id_collision, if we somehow end up with duplicate (residue.chain.id, residue.id)
     # our check for not overwriting pre-existing water breaks.

@@ -222,6 +222,22 @@ def _analyze_extents(structures_path: Path) -> tuple[float, list[str]]:
     return userExtent, sorted_structures[:cutoffIndex]
 
 
+def _solvate_one(m, model, cannonLen):
+    m.addSolvent(forcefield, 
+                    model=model, 
+                    boxSize=Vec3(cannonLen, cannonLen, cannonLen) * nanometers,
+                    neutralize=False,
+                    positiveIon='Na+',
+                    negativeIon='Cl-',
+                    ionicStrength=0*molar)
+    return m
+
+
+def _get_modeller_mem_req():
+
+    return None
+
+
 def _equalize_solvation(structures: list[str], userExtent: float, config_path: Path):
     """
     Inputs:
@@ -301,19 +317,21 @@ def _equalize_solvation(structures: list[str], userExtent: float, config_path: P
 
     # Initial solvation of each conformation
     log("Performing initial solvation of conformations.")
-    def solvate_one(m):
-        m.addSolvent(forcefield, 
-                     model=model, 
-                     boxSize=Vec3(cannonLen, cannonLen, cannonLen) * nanometers,
-                     neutralize=False,
-                     positiveIon='Na+',
-                     negativeIon='Cl-',
-                     ionicStrength=0*molar)
-        return m
     
-    with Pool(4) as pool:
-        modellers = list(tqdm(pool.imap(solvate_one, modellers), total=len(modellers)))
+    from functools import partial
 
+    solvate = partial(_solvate_one, model, cannonLen)
+
+    with Pool(4) as pool:
+        modellers = list(tqdm(pool.imap(solvate, modellers), total=len(modellers)))
+    # start tdqm measurement
+    # solvate / measure one model
+    # send others based on results
+
+    """
+    I need to figure out how expensive saving and loading a model is based on time and mem
+    -wont this be hardware dependant?
+    """
 
 
     # END OF CONSTRUCTION ZONE-----------------------------------------------------------------------------------------------------------

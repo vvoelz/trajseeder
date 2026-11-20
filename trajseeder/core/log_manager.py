@@ -44,7 +44,7 @@ def create_logger(job_path: Path, job_id: str) -> logging.Logger:
     if not logger.handlers:
         logger.setLevel(logging.INFO)
         log_path = job_path / "job.log"
-        handler = logging.FileHandler(log_path)
+        handler = logging.FileHandler(log_path, mode="a")
         handler.setFormatter(JsonlFormatter())
         logger.addHandler(handler)
         logger.propagate = False
@@ -89,7 +89,7 @@ def time_since_last_heartbeat(job_path: Path) -> float:
     log_path = job_path / "job.log"
 
     if not log_path.exists():
-        return None
+        raise RuntimeError("job.log not found.")
 
     last_ts = None
     with open(log_path) as f:

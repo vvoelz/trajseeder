@@ -1,8 +1,13 @@
+import os
 import csv
 import json
 import math
+import pickle
 import random
-import statistics
+import tempfile
+
+from functools import partial
+from multiprocessing import Pool
 
 from tqdm import tqdm
 from pathlib import Path
@@ -18,24 +23,18 @@ from openmm.app import Modeller, PDBFile
 from openmm.unit import nanometer, nanometers, molar
 
 
-from multiprocessing import Pool
-"""
-import os
-import time
-import threading
-import psutil
-"""
 
-def run_calibration(project_path):
+def run_calibration(project_path, workers):
     """
     For a project established with "trajseeder plan", establishes cannonical 
     box size based on user input. Then solvates all structures in the project
     with the name number of waters and ionic concentration based on config.json.
     Saves results of calibration to calibration.json.
+
+    Assumes clean, unbroken PDBs with no solvent, all different conformations of the same protien
+    For example, _max_extent() will return incorrect answers with pre-hydrated structures
+    Adding hydrogens is also often important.
     """
-    # TODO we are currently assuming a clean, unbroken PDB with no solvent which is not always the case
-    # For example, _max_extent() will return incorrect answers with pre-hydrated structures
-    # Adding hydrogens is also often important.
     
     # Warn the user if there is an existing calibration file
     if (project_path / "calibration.json").exists():
@@ -61,15 +60,17 @@ def run_calibration(project_path):
 
     log("Proceeding with calibration...")
 
-    userExtent, structuresCut = _analyze_extents(project_path / "conforms")
+    userExtent, structuresCut = analyze_extents(project_path / "conforms")
 
     log("Equalizing solvation.")
-    
-    modellers, cannonLen, addedHOH, addedPos, addedNeg = _equalize_solvation(structuresCut, userExtent, project_path/"config.json")
+
+    tmpdir = tempfile.TemporaryDirectory() 
+    tmp_modellers, cannonLen, addedHOH, addedPos, addedNeg = equalize_solvation(structuresCut, userExtent, project_path/"config.json", workers, tmpdir)
 
     log(f"Saving calibrated structures as jobs and writing manifest")
     
-    _build_jobs_and_manifest(project_path, modellers, structuresCut)
+    build_jobs_and_manifest(project_path, tmp_modellers, structuresCut, workers)
+    tmpdir.cleanup()
 
     # Make a json file with the results of the calibration 
     data = {
@@ -96,7 +97,7 @@ def log(msg: str) -> None:
 
 def _max_extent(structure_path: str) -> float:
     """Returns the distance between the furthest two atoms on a PDB"""
-    # TODO Assumes there are no other atoms, will break with pre-hydrated conformations
+    # Assumes there are no other atoms, will break with pre-hydrated conformations!
     pdb = PDBFile(structure_path)
     #TODO: pdb.positions.unit is usually in nm, but is it always?
     if(pdb.positions.unit != openmm.unit.nanometer):
@@ -113,47 +114,43 @@ def _print_histogram(data) -> None:
 
     print("\n") # makes formatting nice
 
-    max_height = 20   # bar height cap in rows, purely cosmetic
-    max_bins = 50     # capped at 50 bins to avoid degenerate cases (e.g. extreme outliers)
-    min_bins = 10     # floor so sparse/small datasets still show useful structure
- 
+    max_height = 25   # bar height cap in rows, purely cosmetic
+    CUTOFF = 13.56 # This extent will likely exceed 250k atoms
+    RED, RESET = "\033[91m", "\033[0m"
+
     n = len(data)
     lo, hi = min(data), max(data)
- 
+
     if lo == hi:
         print(f"All {n} values are {lo}")
         return
- 
-    # Freedman-Diaconis rule
-    sorted_data = sorted(data)
-    q1 = statistics.quantiles(sorted_data, n=4)[0]
-    q3 = statistics.quantiles(sorted_data, n=4)[2]
-    iqr = q3 - q1
- 
-    if iqr > 0:
-        bin_width = 2 * iqr / (n ** (1 / 3))
-        bins = max(1, math.ceil((hi - lo) / bin_width))
-    else:
-        # Fallback: Sturges' rule
-        bins = max(1, math.ceil(math.log2(n) + 1))
- 
-    bins = max(min_bins, min(bins, max_bins))  # clamp to [min_bins, max_bins]
+
+    # Square root rule (+5)
+    bins = max(math.ceil(math.sqrt(n)) + 5, 10)
     bin_width = (hi - lo) / bins
     counts = [0] * bins
- 
+
     for x in data:
         idx = int((x - lo) / bin_width)
         idx = min(idx, bins - 1)  # clamp max value into last bin
         counts[idx] += 1
- 
+
     max_count = max(counts)
     col_width = max(len(str(max_count)), 3) + 1
     y_label_width = len(str(max_count))
- 
+
     # only use as many rows as the fullest bin needs, up to max_height
-    height = min(max_count, max_height) if max_count else 1
-    bar_heights = [round((c / max_count) * height) if max_count else 0 for c in counts]
- 
+    height = min(max_count, max_height)
+    # any non-empty bin gets at least one block
+    bar_heights = [
+        max(1, round((c / max_count) * height)) if c > 0 else 0
+        for c in counts
+    ]
+
+    # a bin is flagged if it contains the cutoff or lies entirely above it,
+    # i.e. its upper edge is past the cutoff
+    flagged = [lo + (i + 1) * bin_width > CUTOFF for i in range(bins)]
+
     # bars, drawn top row first
     for row in range(height, 0, -1):
         if row == height:
@@ -162,30 +159,34 @@ def _print_histogram(data) -> None:
             y_label = "0".rjust(y_label_width)
         else:
             y_label = " " * y_label_width
- 
+
         line = f"{y_label} │"
-        for h in bar_heights:
-            line += "█".center(col_width) if h >= row else " " * col_width
+        for h, flag in zip(bar_heights, flagged):
+            if h >= row:
+                block = "█".center(col_width)
+                line += f"{RED}{block}{RESET}" if flag else block
+            else:
+                line += " " * col_width
         print(line)
- 
+
     # x-axis
     print(" " * y_label_width + " └" + "─" * (col_width * bins))
- 
+
     # bin start labels, rotated vertically (one char per row) so they don't collide
     labels = [f"{lo + i * bin_width:.2f}" for i in range(bins)]
     max_label_len = max(len(l) for l in labels)
     padded = [l.rjust(max_label_len) for l in labels]
- 
+
     for row in range(max_label_len):
         line = " " * (y_label_width + 2)
         for l in padded:
             line += l[row].center(col_width)
         print(line)
- 
+
     print(f"\nconformations={n}  bins={bins}  bin width={bin_width:.2f}")
 
 
-def _analyze_extents(structures_path: Path) -> tuple[float, list[str]]:
+def analyze_extents(structures_path: Path) -> tuple[float, list[str]]:
     """
     Input: a path to your project's structures
     Runs an analysis to inform user's choice for cannonical box length
@@ -193,17 +194,44 @@ def _analyze_extents(structures_path: Path) -> tuple[float, list[str]]:
     """
     structures = [str(p) for p in (structures_path).glob("*.pdb")]
 
+    config_path = structures_path / ".." / "config.json"
+    with open(config_path) as f:
+        config = json.load(f)
+
+    padding = config["padding_nm"]
+
     extents = np.array([_max_extent(structure) for structure in structures])
 
     order = np.argsort(extents, kind='stable')
     sorted_extents = extents[order]
     sorted_structures = [structures[i] for i in order]
+    sorted_extents = sorted_extents + (2*padding)
 
-    _print_histogram(extents)
+    _print_histogram(sorted_extents)
 
-    for i in range(6):
-        pct = np.percentile(sorted_extents, 75 + i*5, method='nearest')
-        print(f"{75 + i*5}th percentile extent is: {pct:.2f}")
+    percentiles = list(range(5, 101, 5))
+    extents = np.percentile(sorted_extents, percentiles, method='nearest')
+
+    label_w = len("Percentile:")
+    col_w = max(len(f"{e:.2f}") for e in extents) + 2   # sized to the longest number
+
+    pct_line = "Percentile:" + "".join(str(p).rjust(col_w) for p in percentiles)
+    ext_line = "Extent:".rjust(label_w) + "".join(f"{e:.2f}".rjust(col_w) for e in extents)
+    rule = "-" * len(pct_line)
+
+    print(rule)
+    print(pct_line)
+    print(ext_line)
+    print(rule)
+
+    print("Note: The padding selected in config.json is included in displayed extents.")
+
+    if sorted_extents[-1] >= 13.56:
+        n_under = np.searchsorted(sorted_extents, 13.56)  # count of values below the cap
+        max_pct = (n_under - 1) / (len(sorted_extents) - 1) * 100 if n_under > 0 else 0
+        print(f"\033[91mYour largest extents with padding are expected to exceed "
+            f"250k atoms. The largest percentile you could select to remain "
+            f"under this cap is {max_pct:.1f}.\033[0m")
 
     print("Please select a percentile 0-100.")
     user_input = 100
@@ -219,31 +247,108 @@ def _analyze_extents(structures_path: Path) -> tuple[float, list[str]]:
     userExtent = np.percentile(sorted_extents, user_input, method='nearest')
     cutoffIndex = np.searchsorted(sorted_extents, userExtent, side='right')
 
-    return userExtent, sorted_structures[:cutoffIndex]
+    return userExtent-2*padding, sorted_structures[:cutoffIndex]
 
 
-def _solvate_one(m, forcefield, model, cannonLen):
-    m.addSolvent(forcefield, 
-                 model=model, 
+def _save_modeller(m, path):
+    """ Save a modeller to disk as a temp file """
+    with open(path, "wb") as f:
+        pickle.dump((m.topology, m.getPositions()), f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def _load_modeller(path):
+    """ Load a modeller from a temp file on disk """
+    with open(path, "rb") as f:
+        topology, pos = pickle.load(f)
+    return Modeller(topology, pos)
+
+
+def _added_HOH_positions(in_path_or_model, prot=frozenset()):
+    """ Build a (residue:position) dict of unprotected waters in a model """
+
+    waterPositions = {}
+    # Making a (residue:position) dict b/c _addIons() uses it later
+    if isinstance(in_path_or_model, (str, os.PathLike)):
+        model = _load_modeller(in_path_or_model)
+    else:
+        model = in_path_or_model
+
+    for r in model.topology.residues():
+        if r.name == 'HOH' and (r.chain.id, r.id) not in prot:
+            #Uses oxygen's position for the waters
+            oxygen = next(atom for atom in r.atoms() if atom.element.symbol == 'O')
+            waterPositions[r] = model.positions[oxygen.index]
+
+    return waterPositions
+
+
+def _solvate_one(in_path: Path, forcefield, model, cannonLen) -> tuple[Path, int]:
+    """ Solvates a single modeller with ONLY water. 
+        (Loads it from temp file on disk and saves it back when done)"""
+
+    m = _load_modeller(in_path)
+    m.addSolvent(forcefield,
+                 model=model,
                  boxSize=Vec3(cannonLen, cannonLen, cannonLen) * nanometers,
                  neutralize=False,
                  positiveIon='Na+',
                  negativeIon='Cl-',
-                 ionicStrength=0*molar)
-    return m
+                 ionicStrength=0 * molar)
+
+    numAtoms = m.topology.getNumAtoms()
+    out_path = in_path.replace(".pkl", "_solvated.pkl")
+    _save_modeller(m, out_path)
+    os.remove(in_path)          # free disk
+    return out_path, numAtoms   # tiny return pack to parent
 
 
-def _get_modeller_mem_req():
+def _prune_ionize_one(varying, 
+                      forcefield,
+                      minNumHOH,
+                      ionCutoff, 
+                      positiveIon, 
+                      negativeIon, 
+                      ionicStrength, 
+                      neutralize, 
+                      residueTemplates):
+        """ Removes unprotected water molecules in excess of the minimum number waters
+            found across all conformations, then randomly converts unportected waters
+            to ions to acheive user specified solution."""
 
-    return None
+        in_path, protHOHs = varying
+        model = _load_modeller(in_path)
+        addedHOHs = _added_HOH_positions(model, protHOHs)
+        surplus = len(addedHOHs) - minNumHOH
+        model.delete(random.sample(list(addedHOHs), surplus))
+        addedHOHs = _added_HOH_positions(model, protHOHs)
+
+        # Note: Because model.delete() makes a new python object, we have new topologies
+        # and new residues, so we have to check this again rather than modifying the old dict
+        # if we want, we can remove HOHs and add ions in the same step, which is more efficient (by how much?)
+        # but requires moving signifigant portions of the _addIons() helper function here.
+
+        model._addIons(forcefield, minNumHOH, addedHOHs,
+                       ionCutoff=ionCutoff, 
+                       positiveIon=positiveIon, 
+                       negativeIon=negativeIon, 
+                       ionicStrength=ionicStrength, 
+                       neutralize=neutralize, 
+                       residueTemplates=residueTemplates)
+        
+        out_path = in_path.replace("_solvated.pkl", "_finished.pkl")
+        _save_modeller(model, out_path)
+        os.remove(in_path)          # free disk
+        return out_path             
 
 
-def _equalize_solvation(structures: list[str], userExtent: float, config_path: Path):
+def equalize_solvation(structures: list[str], userExtent: float, config_path: Path, num_workers: int, tmpdir):
     """
     Inputs:
         structures: a list of strings representing file paths of pdbs
         userExtent: a float holding the edge length of the cubic box to place each structure into in nm
         config_path: a Path for the location of the config file containing solvent parameters
+        num_workers: the number of workers to run sections of solvation with
+        tmpdir: where we store modeler objects inbetween usages so memory doesn't balloon
     Returns:
         modellers: list[Modeller], one model for each input structure, matching all input parameters and all
             having the same number of water molecules
@@ -252,6 +357,8 @@ def _equalize_solvation(structures: list[str], userExtent: float, config_path: P
         addedPos: int, number of positive ions added to each conformation
         addedNeg: int, number of negative ions added to each conformation
     """
+
+    # Load values from user config file
     with open(config_path) as f:
         config = json.load(f)
 
@@ -263,163 +370,134 @@ def _equalize_solvation(structures: list[str], userExtent: float, config_path: P
     neutralize = config["neutralize"]
     residueTemplates = dict() #TODO: how would this work, won't these go stale when we modify things?
     ionCutoff = config["ionCutoff"]*nanometer
-
     random.seed(config["randomSeed"])
-
     cannonLen = userExtent + 2*config["padding_nm"]
 
-    # Build initial models
-    modellers = []
-    log("Building inital modellers.")
-    for structure in tqdm(structures):
+    log("Building initial modellers.")
+
+    paths = []
+    protected_HOH_sets = []
+    has_prot_HOH = None
+    num_original_atoms = 0
+
+    def HOH_ids(topology):
+        return {(r.chain.id, r.id) for r in topology.residues() if r.name in {'HOH', 'WAT', 'TIP3', 'SOL'}}
+
+    # Build initial models, save them to disk as temp files to prevent OOM
+    for i, structure in enumerate(tqdm(structures)):
         pdb = PDBFile(structure)
         modeller = Modeller(pdb.topology, pdb.positions)
-        modellers.append(modeller)
+
+        path = os.path.join(tmpdir.name, f"model_{i}.pkl")
+        _save_modeller(modeller, path)
+        paths.append(path)
+
+        # Checking for existing waters, prevent later overwrites
+        if i == 0:
+            num_original_atoms = modeller.topology.getNumAtoms()
+            first = HOH_ids(modeller.topology)
+            has_prot_HOH = bool(first)
+            if has_prot_HOH:
+                protected_HOH_sets.append(first)
+        elif has_prot_HOH:
+            protected_HOH_sets.append(HOH_ids(modeller.topology))
+
+        del pdb, modeller  # release before loading the next structure
     
+    # Filling this out for later zip length conflict avoidance
+    if not has_prot_HOH:
+        protected_HOH_sets = [set() for _ in paths]
+
     # Count initial number of ions in structure
-    posName = positiveIon.rstrip('+-').upper()
-    negName = negativeIon.rstrip('+-').upper()
-    initial_pos_ions = sum(1 for r in modellers[0].topology.residues() if r.name == posName)
-    initial_neg_ions = sum(1 for r in modellers[0].topology.residues() if r.name == negName)
+    tempModel = _load_modeller(paths[0])
+    posName = positiveIon.rstrip('+-0123456789').upper()
+    negName = negativeIon.rstrip('+-0123456789').upper()
+    initial_pos_ions = sum(1 for r in tempModel.topology.residues() if r.name == posName)
+    initial_neg_ions = sum(1 for r in tempModel.topology.residues() if r.name == negName)
 
-    # Creates set of the pre-existing waters in a model so they are not overwritten later
-    log("Establishing pre-existing protected water molecules.")
-    def HOH_ids(topology):
-        return {(r.chain.id, r.id) for r in topology.residues() if r.name == 'HOH'}
+    # Sanity check
+    if str(tempModel.topology.getNumChains() + 1) in {c.id for c in tempModel.topology.chains()}:
+        raise ValueError("addSolvent() would assign a duplicate chain ID, you have a chain.id = num chains")
     
-    protected_HOH_sets = [HOH_ids(m.topology) for m in tqdm(modellers)]
-
-    # START OF CONSTRUCTION ZONE-----------------------------------------------------------------------------------------------------------
-    
-    """
-    TODO: 
-    See physcial notes on establishing memory and cpu core caps, the basic is here
-
-    The plan is to 
-    -check the maximum memory usage of solvating a single modeller
-    -check static memory usage of holding onto the modeller
-    -allow user to provide memory and cpu core caps (grab defaults as total-X if they dont)
-
-    total mem usage ~= (total#modellers*mem size of modeller) + (total#workers)(peak mem usage solvation)
-
-    (plus safety margins)
-
-
-    then handle the cases
-    1. not enough mem to hold them all -> save modellers not in use
-    2. sufficient memory -> if there is enough mem and cpu make extra workers, otherwise serialize
-
-    (need to figure out if it is worth saving the modellers to free up extra worker room.)
-
-
-    make sure tqdm still works with your ultimate implementation
-    """    
+    del tempModel
 
     # Initial solvation of each conformation
     log("Performing initial solvation of conformations.")
-    
-    from functools import partial
 
     solvate = partial(_solvate_one, forcefield=forcefield, model=model, cannonLen=cannonLen)
 
-    with Pool(4) as pool:
-        modellers = list(tqdm(pool.imap(solvate, modellers), total=len(modellers)))
-    # start tdqm measurement
-    # solvate / measure one model
-    # send others based on results
-
-    """
-    I need to figure out how expensive saving and loading a model is based on time and mem
-    -wont this be hardware dependant?
-    """
-
-
-    # END OF CONSTRUCTION ZONE-----------------------------------------------------------------------------------------------------------
-    
-    # TODO: Sanity check for id_collision, if we somehow end up with duplicate (residue.chain.id, residue.id)
-    # our check for not overwriting pre-existing water breaks.
-    # Do we care about reusing residue ID by itself or only with same chain ID?
-    # Maybe this should really be handled in inital PDB cleaning that hasn't been implemented
-    # by checking for integer ID names?
-    # I don't see *why* we'd ever be passed a PDB with a chain or residue already assigned an
-    # integer value as it's ID, but if we are, we now have potential for conflicts in the water
-    # we add, since it is automatically assigned id = str(#chains/residues + 1).
-    # TODO: If we have say, a Cl- with ID="346" in the PDB and then
-    # water 346 gets converted to a Cl- later. However, this won't cause issues within a single
-    # run of trajseeder since after this we don't care about ID conflicts
-    # TODO: Notably, anything working on the models trajseeder makes, will have to deal
-    # with the potential ID conflicts, since we produce models with fewer chains/residues than
-    # the highest id numbers on the waters and ions we added. This can be fixed by assigning new
-    # IDs to these additions at the end of this function
-
-    # Build a (residue:position) dict of unprotected waters in a model
-    log("Tracking added water molecules.")
-    def added_HOH_positions(model, prot):
-        waterPositions = {}
-        for r in model.topology.residues():
-            if r.name == 'HOH' and (r.chain.id, r.id) not in prot:
-                #Uses oxygen's position for the waters
-                oxygen = next(atom for atom in r.atoms() if atom.element.symbol == 'O')
-                waterPositions[r] = model.positions[oxygen.index]
-        return waterPositions
-    
-    added_HOH_pos_dicts = [
-        added_HOH_positions(m, p) 
-        for m, p in tqdm(zip(modellers, protected_HOH_sets), total=len(modellers))
-    ]
+    if num_workers:
+        with Pool(num_workers, maxtasksperchild=1) as pool:
+            results = list(tqdm(pool.imap(solvate, paths, chunksize=1), total=len(paths)))
+    else:
+        results = [solvate(p) for p in tqdm(paths)]
+        
+    solvated_paths, num_atoms = map(list, zip(*results))
 
     # The minimum number of added water molecules across all conformations
-    minNumHOH = min(len(pos_dict) for pos_dict in added_HOH_pos_dicts)
+    minNumHOH = (min(num_atoms) - num_original_atoms)/3
+    assert(minNumHOH % 1 == 0)
+    minNumHOH = int(minNumHOH)
+
 
     # Remove surplus HOHs and add ions to each model
     log("Removing surplus water molecules and ionizing.")
-    for model, addedHOHs, protHOHs in tqdm(zip(modellers, added_HOH_pos_dicts, protected_HOH_sets), 
-                                         total=len(modellers)):
 
-        surplus = len(addedHOHs) - minNumHOH
-        model.delete(random.sample(list(addedHOHs), surplus))
+    assert len(solvated_paths) == len(protected_HOH_sets)
 
-        addedHOHs = added_HOH_positions(model, protHOHs)
-        # Note: Because model.delete() makes a new python object, we have new topologies
-        # and new residues, so we have to check this again rather than modifying the old dict
-        # if we want, we can remove HOHs and add ions in the same step, which is more efficient (by how much?)
-        # but requires moving signifigant portions of the _addIons() helper function here.
+    prune_ionize = partial(_prune_ionize_one,
+                            forcefield=forcefield,
+                            minNumHOH=minNumHOH,
+                            ionCutoff=ionCutoff,
+                            positiveIon=positiveIon,
+                            negativeIon=negativeIon,
+                            ionicStrength=ionicStrength,
+                            neutralize=neutralize,
+                            residueTemplates=residueTemplates)
 
-        model._addIons(forcefield, minNumHOH, addedHOHs, 
-                       ionCutoff=ionCutoff, 
-                       positiveIon=positiveIon, 
-                       negativeIon=negativeIon, 
-                       ionicStrength=ionicStrength, 
-                       neutralize=neutralize, 
-                       residueTemplates=residueTemplates)
-        
-    # Count final number of ions in structure
-    final_pos_ions = sum(1 for r in modellers[0].topology.residues() if r.name == posName)
-    final_neg_ions = sum(1 for r in modellers[0].topology.residues() if r.name == negName)
+    jobs = list(zip(solvated_paths, protected_HOH_sets))
+    if num_workers:
+        with Pool(num_workers, maxtasksperchild=1) as pool:
+            finished_paths = list(tqdm(pool.imap(prune_ionize, jobs, chunksize=1), total=len(jobs)))
+    else:
+        finished_paths = [prune_ionize(job) for job in tqdm(jobs)]
+
+    # Count final number of ions and HOHs in structure
+    tempModel = _load_modeller(finished_paths[0])
+
+    final_pos_ions = sum(1 for r in tempModel.topology.residues() if r.name == posName)
+    final_neg_ions = sum(1 for r in tempModel.topology.residues() if r.name == negName)
 
     addedPos = final_pos_ions - initial_pos_ions
     addedNeg = final_neg_ions - initial_neg_ions
 
     addedHOH = minNumHOH - addedPos - addedNeg
     
-    return modellers, cannonLen, addedHOH, addedPos, addedNeg
+    return finished_paths, cannonLen, addedHOH, addedPos, addedNeg
 
 
-def _build_jobs_and_manifest(project_path, modellers, structuresCut):
+def _save_job(inputs):
+    """ Loads a modeller from temp and saves is as PDB for a job. """
+    modeller, output_path = inputs
+
+    with open(output_path, "w") as f:
+        m = _load_modeller(modeller)
+        PDBFile.writeFile(m.getTopology(), m.getPositions(), f)
+
+
+def build_jobs_and_manifest(project_path, modellers, structuresCut, num_workers: int):
     """Save calibrated structures as jobs and write manifest and log"""
 
     manifest_path = project_path / "manifest.csv"
+    outputs = []
     with open(manifest_path, "a", newline="") as manifest_file:
         writer = csv.writer(manifest_file)
 
-        for i, modeller in enumerate(modellers):
+        for i in range(len(modellers)):
 
             job_path = project_path / "jobs" / f"{i:06d}"
+            outputs.append(job_path)
             job_path.mkdir()
-
-            output_path = job_path / "input.pdb"
-            with open(output_path, "w") as f:
-                PDBFile.writeFile(modeller.getTopology(), modeller.getPositions(), f)
 
             output_path = job_path / "status.txt"
             with open(output_path, "w") as f:
@@ -430,3 +508,14 @@ def _build_jobs_and_manifest(project_path, modellers, structuresCut):
                 f.write("")
 
             writer.writerow([f"{i:06d}", f"{structuresCut[i]}"])
+
+
+    log("Saving job topology and positions.")
+    jobs = list(zip(modellers, outputs))
+
+    if num_workers and num_workers > 1:
+        with Pool(num_workers, maxtasksperchild=1) as pool:
+            list(tqdm(pool.imap(_save_job, jobs, chunksize=1), total=len(jobs)))
+    else:
+        for job in tqdm(jobs):
+            _save_job(job)

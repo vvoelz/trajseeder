@@ -123,9 +123,9 @@ def log_all_jobs_verbose(project_path: Path) -> None:
 
         status = get_job_status(job_path)
         
-        if (status == "RUNNING" and
-           time_since_last_heartbeat(job_path) > 150) or\
-           (status != "PENDING" and status != "FAILED" and status != "COMPLETE"):
+        stale = status == "RUNNING" and time_since_last_heartbeat(job_path) > 150
+        unknown = status not in {"PENDING", "RUNNING", "FAILED", "COMPLETE"}
+        if stale or unknown:
                 
             update_job_status(job_path, "FAILED")
             logger = create_logger(job_path, job_path.name[-6:])

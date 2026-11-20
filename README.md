@@ -207,12 +207,16 @@ trajseeder_project/
 
 ### 2. Calibrate the solvent environment
 
-Next, trajseeder uses provided input structures to allow the user to make informed decisions on size of
-cannonical box. This decision along with config.json solvates all structures under the same conditions
-and saves them as jobs to your project. The information on how they were solvated is saved to calibration.json.
+Next, trajseeder uses provided input structures to allow the user to make decisions on the size of the
+cannonical box. This decision is informed by a histogram printed to console and information about what percentile of conformations would be contained in various box sizes. We do not recommend exceeding 250k atoms within a box as this makes simulation both extremely intensive and far less accurate. A warning is printed to show which box sizes would exceed this limit.
+
+The decision the user makes on cannonical box size along with config.json solvates all structures under the same conditions and saves them as jobs to your project. The information on how they were solvated is saved to calibration.json.
+
+A parallelize option is provided which will massively speed up this step. You should set it less than or equal to the number of CPUs your machine has. In my testing I have found each additional worker uses around 0.75-1.00 GiB with 250k atom models. With the overhead from the parent process, I never had issues running 8 workers on 8GiB of memory.
 
 ```bash
 trajseeder calibrate trajseeder_project
+trajseeder calibrate trajseeder_project --parallelize 8
 ```
 
 This step is intended to determine parameters such as:

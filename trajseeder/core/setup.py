@@ -119,7 +119,7 @@ def _write_project_config(project_path: Path):
             "amber14/tip3pfb.xml"
         ],
 
-        "padding_nm": 1.2,
+        "padding_nm": 1.0,
         "ionicStrength": 0.0,
         "model":'tip3p',
         "positiveIon":'Na+',
